@@ -7,7 +7,7 @@ import {
 import type { SkillId } from '@premium-rpg/shared-types';
 import { getRecipeById } from '@premium-rpg/game-engine';
 import { useGame } from '@/lib/game-state';
-import { actionsForSkill, skillLabel, SKILL_ICONS, forgeRows, type ActionRow } from '@/lib/skills-meta';
+import { actionsForSkill, skillLabel, SKILL_ICONS, forgeRows, formatDuration, type ActionRow } from '@/lib/skills-meta';
 import { Bar } from '@/components/game/primitives';
 import { IngredientChip } from './IngredientChip';
 import { ActionQueue } from '@/components/ActionQueue';
@@ -27,8 +27,12 @@ export function GatherWorkspace({ skill, activity, onNavigateActivity }: { skill
     ? rows.find((r) => r.id === (active.kind === 'gathering' ? active.nodeId : active.recipeId))
     : null;
 
-  const msLeft = active && activeRow ? active.startTime + activeRow.duration * 1000 - now : 0;
-  const activePct = active && activeRow ? Math.max(0, Math.min(100, ((now - active.startTime) / (activeRow.duration * 1000)) * 100)) : 0;
+  // Engine action durations are already milliseconds. Use the authoritative
+  // active duration because tool bonuses may make it shorter than the row's
+  // base duration.
+  const elapsedMs = active ? Math.max(0, now - active.startTime) : 0;
+  const msLeft = active ? Math.max(0, active.duration - elapsedMs) : 0;
+  const activePct = active ? Math.max(0, Math.min(100, (elapsedMs / active.duration) * 100)) : 0;
 
   const SkillIcon = SKILL_ICONS[skill];
   const satchel = Object.values(state.inventory).reduce((n, q) => n + q, 0);
@@ -57,7 +61,7 @@ export function GatherWorkspace({ skill, activity, onNavigateActivity }: { skill
               </div>
               <Bar variant="energy" pct={activePct} height={5} />
               <div className="mt-1 text-[10px] text-mist">
-                Strike in progress · {Math.round((now - active.startTime) / 1000)}s / {activeRow.duration}s
+                Strike in progress · {formatDuration(elapsedMs)} / {formatDuration(active.duration)}
               </div>
             </>
           ) : (
@@ -175,7 +179,7 @@ function ActionRowCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
             <span className="truncate text-xs font-semibold text-bone">{row.name}</span>
-            <span className="font-mono text-[10px] text-stone">{row.duration}s · {row.xp} XP</span>
+            <span className="font-mono text-[10px] text-stone">{formatDuration(row.duration)} · {row.xp} XP</span>
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-stone">
             {row.toolName && (
