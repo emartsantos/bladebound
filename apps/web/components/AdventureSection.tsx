@@ -8,7 +8,7 @@ import {
   estimateDanger,
   type DangerLevel,
 } from '@premium-rpg/game-engine';
-import { LuMap, LuLock, LuPause, LuPlay, LuBed, LuDrumstick, LuSkull, LuSwords, LuCrown, LuScrollText, LuX } from 'react-icons/lu';
+import { LuMap, LuLock, LuBed, LuDrumstick, LuSkull, LuSwords, LuCrown, LuScrollText, LuX, LuClock3, LuHistory } from 'react-icons/lu';
 import type { IconType } from 'react-icons';
 import { useGame } from '@/lib/game-state';
 import { usePlayer } from '@/lib/use-player';
@@ -56,7 +56,7 @@ function toStatBlock(stats: BaseStats): StatBlock {
 export function AdventureSection() {
   const { player } = usePlayer();
   const game = useGame();
-  const { state, stats, maxHealth, fight, toggleAutoFight, toggleRest, eatFood, clearCombatLog, setCombatTarget } = game;
+  const { state, stats, maxHealth, fight, toggleRest, eatFood, clearCombatLog, setCombatTarget } = game;
 
   const combat = state.combat;
   const enemy = useMemo(() => ALL_ENEMIES.find((e) => e.id === combat.enemyId) ?? null, [combat.enemyId]);
@@ -86,15 +86,16 @@ export function AdventureSection() {
   const enemyHpPct = enemy ? Math.max(0, Math.min(100, Math.round((combat.enemyHp / enemy.maxHealth) * 100))) : 100;
   const enemyHp = enemy ? Math.min(combat.enemyHp, enemy.maxHealth) : 0;
   const fightActive = combat.encounter !== null && !combat.encounter.finished;
-  const isInCombat = combat.autoFight || combat.resting || fightActive;
+  const cooldownMs = Math.max(0, state.dailyBattle.nextBattleAt - Date.now());
+  const battleReady = cooldownMs <= 0;
+  const cooldownLabel = battleReady ? 'Battle ready' : `${Math.floor(cooldownMs / 3_600_000)}h ${Math.floor((cooldownMs % 3_600_000) / 60_000)}m ${Math.floor((cooldownMs % 60_000) / 1000)}s`;
+  const isInCombat = combat.resting || fightActive;
 
   const statusText = combat.resting
     ? 'Resting — healing in camp'
     : fightActive
       ? `In battle — round ${combat.encounter?.round ?? 1}`
-      : combat.autoFight
-        ? 'Auto-fighting — hunting has begun'
-        : null;
+      : null;
 
   return (
     <div className="max-w-5xl space-y-4">
@@ -114,6 +115,13 @@ export function AdventureSection() {
       <Panel bodyClassName="px-4 py-3">
         <BarLabel left="Combat progress" right={`Level ${state.combatLevel} · ${combatInto.toLocaleString()} / ${combatNeed.toLocaleString()}`} className="mb-1.5" />
         <Bar variant="xp" pct={combatPct} />
+      </Panel>
+
+      <Panel bodyClassName="px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2 text-xs text-mist"><LuClock3 className="h-3.5 w-3.5 text-bronze" /> Rewarded battle · one per hero every 24 hours</span>
+          <span className={`font-mono text-xs ${battleReady ? 'text-verdantBright' : 'text-emberLight'}`}>{cooldownLabel}</span>
+        </div>
       </Panel>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
@@ -265,18 +273,9 @@ export function AdventureSection() {
 
                 {/* Controls */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <GameButton variant="primary" disabled={combat.playerHp <= 0 || isInCombat} onClick={fight}>
+                  <GameButton variant="primary" disabled={combat.playerHp <= 0 || isInCombat || !battleReady} onClick={fight}>
                     <LuSwords className="h-3.5 w-3.5" /> Fight
                   </GameButton>
-                  {!combat.autoFight ? (
-                    <GameButton variant="secondary" disabled={combat.playerHp <= 0} onClick={toggleAutoFight}>
-                      <LuPlay className="h-3 w-3" /> Auto-fight
-                    </GameButton>
-                  ) : (
-                    <GameButton variant="danger" onClick={toggleAutoFight}>
-                      <LuPause className="h-3 w-3" /> Stop auto
-                    </GameButton>
-                  )}
                   <GameButton
                     variant={combat.resting ? 'success' : 'secondary'}
                     disabled={combat.playerHp >= maxHealth && combat.playerHp > 0}
@@ -299,6 +298,20 @@ export function AdventureSection() {
                     <span className="mx-1.5 text-stone">·</span>
                     {danger.factors.slice(0, 2).join(' · ')}
                   </p>
+                )}
+
+                {state.dailyBattle.history.length > 0 && (
+                  <div className="rounded-sm border border-iron/70 bg-charcoal/50 p-3">
+                    <div className="mb-2 flex items-center gap-1.5"><LuHistory className="h-3.5 w-3.5 text-bronze" /><PanelLabel>Recent battles</PanelLabel></div>
+                    <div className="space-y-1">
+                      {state.dailyBattle.history.slice(-5).reverse().map((entry) => (
+                        <div key={entry.id} className="flex items-center justify-between text-[11px] text-mist">
+                          <span>{entry.result === 'victory' ? 'Victory' : 'Defeat'} · {ALL_ENEMIES.find((foe) => foe.id === entry.enemyId)?.name ?? entry.enemyId}</span>
+                          <span className="font-mono text-stone">+{entry.xp} XP · +{entry.gold}g</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {/* Gains feed */}

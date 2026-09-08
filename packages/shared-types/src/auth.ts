@@ -96,5 +96,8 @@ export interface AuthState {
   session: AuthSession | null;
   guestSession: GuestSessionData | null;
   character: CharacterMetadata | null;
+  /** Registered-account hero roster. Guests have one implicit hero. */
+  characters?: CharacterMetadata[];
+  activeCharacterId?: string | null;
   loading: boolean;
 }

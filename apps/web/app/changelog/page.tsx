@@ -24,6 +24,20 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.2.0',
+    type: 'major',
+    date: '2026-09-08',
+    changes: [
+      { category: 'Added', description: 'One rewarded battle per hero every 24 hours with a live availability countdown' },
+      { category: 'Added', description: 'Persisted battle history with outcome, opponent, XP, gold, and loot details' },
+      { category: 'Added', description: 'Class-specific stat growth and a level 100 combat cap' },
+      { category: 'Added', description: 'Equipped item stats now contribute directly to combat and character power' },
+      { category: 'Fixed', description: 'Battle attempt IDs prevent duplicate rewards after reloads or repeated resolution' },
+      { category: 'Changed', description: 'Auto-fight was retired from open-world rewarded battles to enforce the daily hero rule' },
+      { category: 'Changed', description: 'Save schema upgraded to v3 with backward-compatible migration' },
+    ],
+  },
+  {
     version: 'v0.1.8',
     type: 'minor',
     date: '2026-09-08',

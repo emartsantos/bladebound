@@ -10,6 +10,8 @@ export interface StoredSupabaseSession {
   userId: string;
   email: string;
   character?: CharacterMetadata;
+  characters?: CharacterMetadata[];
+  activeCharacterId?: string;
 }
 
 export function loadSupabaseSession(): StoredSupabaseSession | null {

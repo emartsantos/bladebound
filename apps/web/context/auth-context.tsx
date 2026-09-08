@@ -42,6 +42,8 @@ interface AuthContextValue {
   loginAsGuest: (characterClass?: PlayerClassId) => Promise<AuthLoginResponse>;
   createCharacter: (request: CreateCharacterRequest) => Promise<CreateCharacterResponse>;
   renameCharacter: (request: RenameCharacterRequest) => Promise<RenameCharacterResponse>;
+  selectCharacter: (characterId: string) => Promise<void>;
+  archiveCharacter: (characterId: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   exportGuestSave: () => string | null;
   importGuestSave: (saveData: string) => { success: boolean; guestSession: GuestSessionData | null };
@@ -118,6 +120,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [client],
   );
 
+  const selectCharacter = useCallback(async (characterId: string) => {
+    if (!client.selectCharacter) return;
+    setState(await client.selectCharacter(characterId));
+  }, [client]);
+
+  const archiveCharacter = useCallback(async (characterId: string) => {
+    if (!client.archiveCharacter) return { success: false, error: 'Character archiving is unavailable' };
+    const result = await client.archiveCharacter(characterId);
+    if (result.success) setState(await client.restoreSession());
+    return result;
+  }, [client]);
+
   const logout = useCallback(() => {
     client.logout();
     setState({ ...DEFAULT_AUTH_STATE, loading: false });
@@ -132,6 +146,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginAsGuest,
         createCharacter,
         renameCharacter,
+        selectCharacter,
+        archiveCharacter,
         logout,
         exportGuestSave: client.exportGuestSave,
         importGuestSave: client.importGuestSave,

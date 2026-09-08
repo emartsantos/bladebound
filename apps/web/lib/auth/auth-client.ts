@@ -34,6 +34,8 @@ export interface AuthClient {
   loginAsGuest(characterClass?: PlayerClassId): Promise<AuthLoginResponse>;
   createCharacter(request: CreateCharacterRequest): Promise<CreateCharacterResponse>;
   renameCharacter(request: RenameCharacterRequest): Promise<RenameCharacterResponse>;
+  selectCharacter?(characterId: string): Promise<AuthState>;
+  archiveCharacter?(characterId: string): Promise<{ success: boolean; error?: string }>;
   /** Restore a session/state from the currently persisted session. */
   restoreSession(): AuthState | Promise<AuthState>;
   logout(): void;

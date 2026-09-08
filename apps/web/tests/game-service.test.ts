@@ -322,6 +322,29 @@ describe('combat', () => {
     expect(settled.combat.sessionKills).toBe(1);
     expect(settled.gold).toBe(state.gold);
   });
+
+  it('reserves one persisted battle attempt and blocks a second fight during cooldown', () => {
+    const base = reduceSetCombatTarget(mergeSeed(makeConfig({ combatLevel: 5 })), 'starter-frontier', 'goblin');
+    const first = reduceFight(base);
+    expect(first.combat.encounter).not.toBeNull();
+    expect(first.dailyBattle.activeAttemptId).toMatch(/^battle-/);
+    expect(first.dailyBattle.nextBattleAt).toBeGreaterThan(Date.now());
+
+    const withoutEncounter: GameState = { ...first, combat: { ...first.combat, encounter: null } };
+    const blocked = reduceFight(withoutEncounter);
+    expect(blocked.combat.encounter).toBeNull();
+    expect(blocked.dailyBattle.activeAttemptId).toBe(first.dailyBattle.activeAttemptId);
+  });
+
+  it('records exactly one battle result after victory', () => {
+    const targeted = reduceSetCombatTarget(mergeSeed(makeConfig({ combatLevel: 5 })), 'starter-frontier', 'goblin');
+    let state = reduceFight({ ...targeted, combat: { ...targeted.combat, playerHp: 999 } });
+    while (state.combat.encounter) state = tick(state, (state.combat.nextRoundAt ?? 0) + 1);
+    expect(state.dailyBattle.history).toHaveLength(1);
+    expect(state.dailyBattle.history[0]).toMatchObject({ enemyId: 'goblin', result: 'victory' });
+    const reticked = tick(state, Date.now() + 100_000);
+    expect(reticked.dailyBattle.history).toHaveLength(1);
+  });
 });
 
 // ── equipment ───────────────────────────────────────────────────

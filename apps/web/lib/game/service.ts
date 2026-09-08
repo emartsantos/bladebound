@@ -75,12 +75,15 @@ import { baseStatsForLevel, cumulativeXpForLevel } from '@/lib/player-summary';
 import { itemName, itemHeal } from '@/lib/item-names';
 import { GAME_SAVE_SCHEMA_VERSION, type EconomyTransaction, type GamePersistence, type GameSaveData } from '@/lib/persistence/game-persistence';
 import type { DungeonCombatSlice } from '@/lib/persistence/game-persistence';
+import type { DailyBattleState, BattleHistoryEntry } from '@/lib/persistence/game-persistence';
+import { COMBAT_LEVEL_CAP, derivedCombatStats } from '@/lib/combat-progression';
 
 export const TICK_MS = 250;
 export const AUTO_FIGHT_GAP_MS = 1100;
 export const REST_HEAL_FRACTION = 0.02; // of max HP per second
 export const MAX_ACTION_QUEUE = 10;
 export const MAX_ACTION_REPETITIONS = 1000;
+export const REWARDED_BATTLE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 // Starter satchel for a brand-new save (no save file yet). Enough ore to try
 // mining + the Forge pipeline and a first alchemy brew, so new hunters aren't
@@ -147,6 +150,7 @@ export type { DungeonCombatSlice };
 
 export interface GameState {
   playerName: string;
+  characterClass: string;
   skills: Record<SkillId, number>; // cumulative XP per skill
   gold: number;
   inventory: Record<string, number>;
@@ -169,6 +173,7 @@ export interface GameState {
   /** Persisted daily and weekly task assignments and progress. */
   task: PlayerTaskState;
   ledger: EconomyTransaction[];
+  dailyBattle: DailyBattleState;
 }
 
 export interface SkillView {
@@ -236,6 +241,7 @@ export function emptyDungeonState(): PlayerDungeonState {
 export type SeedConfig = {
   playerId: string;
   playerName: string;
+  characterClass?: string;
   skills: Record<SkillId, { level: number; xp: number }>;
   combatLevel: number;
   equipment: EquipmentSlots;
@@ -249,6 +255,7 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
   ensureCurrentTasks(task, ALL_TASKS, DEFAULT_TASK_SELECTION, new Date(), save?.combatLevel ?? 1);
   return {
     playerName: '',
+    characterClass: 'warrior',
     skills: {
       mining: save?.skills?.mining ?? 0,
       woodcutting: save?.skills?.woodcutting ?? 0,
@@ -297,6 +304,7 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     dungeonCombat: save?.dungeonCombat ?? EMPTY_DUNGEON_COMBAT,
     task,
     ledger: save?.ledger ?? [],
+    dailyBattle: save?.dailyBattle ?? { nextBattleAt: 0, activeAttemptId: null, activeStartedAt: null, history: [] },
   };
 }
 
@@ -309,6 +317,7 @@ export function mergeSeed(config: SeedConfig): GameState {
   return {
     ...base,
     playerName: config.playerName,
+    characterClass: config.characterClass ?? 'warrior',
     combatXp: persisted && typeof persisted.combatXp === 'number'
       ? base.combatXp
       : cumulativeXpForLevel(config.combatLevel),
@@ -356,6 +365,7 @@ export function gameToSaveData(state: GameState): GameSaveData {
     dungeonCombat: state.dungeonCombat,
     task: state.task,
     ledger: state.ledger,
+    dailyBattle: state.dailyBattle,
   };
 }
 
@@ -423,8 +433,9 @@ function roundDelayMs(encounter: CombatEncounter): number {
 
 function beginEncounter(prev: GameState, now: number): GameState {
   const enemy = ALL_ENEMIES.find((e) => e.id === prev.combat.enemyId);
-  if (!enemy || prev.combat.encounter) return prev;
-  const stats = baseStatsForLevel(prev.combatLevel);
+  if (!enemy || prev.combat.encounter || now < prev.dailyBattle.nextBattleAt) return prev;
+  const stats = derivedCombatStats(prev.combatLevel, prev.characterClass, prev.equipment);
+  const attemptId = `battle-${now}-${nextId()}`;
   const player = createPlayerParticipant(
     prev.playerName,
     prev.combatLevel,
@@ -435,6 +446,12 @@ function beginEncounter(prev: GameState, now: number): GameState {
   const encounter = startCombatEncounter(player, createEnemyParticipant(enemy));
   return {
     ...prev,
+    dailyBattle: {
+      ...prev.dailyBattle,
+      nextBattleAt: now + REWARDED_BATTLE_COOLDOWN_MS,
+      activeAttemptId: attemptId,
+      activeStartedAt: now,
+    },
     combat: {
       ...prev.combat,
       encounter,
@@ -594,7 +611,7 @@ export function tick(prev: GameState, now: number): GameState {
       if (enc.result === 'victory') {
         const enemy = ALL_ENEMIES.find((e) => e.id === combat.enemyId) ?? ALL_ENEMIES[0];
         const newCombatXp = state.combatXp + enemy.xpReward;
-        const newCombatLevel = levelForXp(newCombatXp);
+        const newCombatLevel = Math.min(COMBAT_LEVEL_CAP, levelForXp(newCombatXp));
         const gains: GainFeed[] = [
           { id: nextId(), text: `+${enemy.goldReward} gold`, kind: 'gold' },
           { id: nextId(), text: `+${enemy.xpReward} XP`, kind: 'xp' },
@@ -612,6 +629,17 @@ export function tick(prev: GameState, now: number): GameState {
             kind: ITEM_BY_ID[drop.itemId]?.rarity === 'legendary' || drop.quantity > 3 ? 'rare' : 'item',
           });
         }
+        const historyEntry: BattleHistoryEntry = {
+          id: state.dailyBattle.activeAttemptId ?? `battle-${now}`,
+          enemyId: enemy.id,
+          regionId: combat.regionId,
+          startedAt: state.dailyBattle.activeStartedAt ?? now,
+          completedAt: now,
+          result: 'victory',
+          xp: enemy.xpReward,
+          gold: enemy.goldReward,
+          loot,
+        };
         state = {
           ...state,
           gold: state.gold + enemy.goldReward,
@@ -619,6 +647,7 @@ export function tick(prev: GameState, now: number): GameState {
           combatXp: newCombatXp,
           combatLevel: newCombatLevel,
           gains: pushGains(state.gains, gains),
+          dailyBattle: { ...state.dailyBattle, activeAttemptId: null, activeStartedAt: null, history: [...state.dailyBattle.history, historyEntry].slice(-30) },
           combat: {
             ...combat,
             encounter: null,
@@ -641,9 +670,16 @@ export function tick(prev: GameState, now: number): GameState {
         }
       } else {
         const enemy = ALL_ENEMIES.find((e) => e.id === combat.enemyId) ?? ALL_ENEMIES[0];
+        const historyEntry: BattleHistoryEntry = {
+          id: state.dailyBattle.activeAttemptId ?? `battle-${now}`,
+          enemyId: enemy.id, regionId: combat.regionId,
+          startedAt: state.dailyBattle.activeStartedAt ?? now, completedAt: now,
+          result: 'defeat', xp: 0, gold: 0, loot: [],
+        };
         state = {
           ...state,
           gains: pushGains(state.gains, [{ id: nextId(), text: `${enemy.name} defeated you.`, kind: 'info' }]),
+          dailyBattle: { ...state.dailyBattle, activeAttemptId: null, activeStartedAt: null, history: [...state.dailyBattle.history, historyEntry].slice(-30) },
           combat: {
             ...combat,
             playerHp: 0,
@@ -676,7 +712,7 @@ export function tick(prev: GameState, now: number): GameState {
 
   // ---- Combat: auto-fight start / rest ----
   if (
-    combat.autoFight &&
+    combat.autoFight && now >= state.dailyBattle.nextBattleAt &&
     !combat.resting &&
     combat.playerHp > 0 &&
     !combat.encounter &&
@@ -813,7 +849,7 @@ export function reduceFight(prev: GameState): GameState {
 }
 
 export function reduceToggleAutoFight(prev: GameState): GameState {
-  const autoFight = !prev.combat.autoFight;
+  const autoFight = false;
   const enemy = ALL_ENEMIES.find((e) => e.id === prev.combat.enemyId);
   return {
     ...prev,

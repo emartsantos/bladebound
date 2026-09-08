@@ -2,7 +2,7 @@ import type { GameSaveData } from './game-persistence';
 import { localGamePersistence } from './local-game-persistence';
 import { loadSupabaseSession, supabaseFetch } from '@/lib/supabase/session';
 
-export async function pullSupabaseGameSave(accountId: string, characterId: string): Promise<void> {
+export async function pullSupabaseGameSave(characterId: string): Promise<void> {
   const session = loadSupabaseSession();
   if (!session?.accessToken) return;
   const response = await supabaseFetch(
@@ -11,7 +11,7 @@ export async function pullSupabaseGameSave(accountId: string, characterId: strin
   );
   if (!response.ok) return;
   const rows = await response.json() as { save_data: GameSaveData }[];
-  if (rows[0]?.save_data) localGamePersistence.save(`account:${accountId}`, rows[0].save_data, false);
+  if (rows[0]?.save_data) localGamePersistence.save(`character:${characterId}`, rows[0].save_data, false);
 }
 
 export async function pushSupabaseGameSave(data: GameSaveData): Promise<void> {
@@ -29,4 +29,20 @@ export async function pushSupabaseGameSave(data: GameSaveData): Promise<void> {
       updated_at: new Date().toISOString(),
     }),
   }, session.accessToken);
+}
+
+/** Atomically reserve a registered hero's daily attempt before local combat starts. */
+export async function claimSupabaseDailyBattle(characterId: string): Promise<{ success: boolean; nextBattleAt?: number; error?: string }> {
+  const session = loadSupabaseSession();
+  if (!session?.accessToken) return { success: false, error: 'Not authenticated' };
+  const idempotencyKey = `battle:${characterId}:${Date.now()}:${crypto.randomUUID()}`;
+  const response = await supabaseFetch('/rest/v1/rpc/claim_daily_battle', {
+    method: 'POST', body: JSON.stringify({ p_character_id: characterId, p_idempotency_key: idempotencyKey }),
+  }, session.accessToken);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { message?: string };
+    return { success: false, error: body.message?.includes('battle_cooldown') ? 'This hero has already battled today.' : (body.message ?? 'Could not reserve battle') };
+  }
+  const row = (await response.json() as Array<{ next_battle_at?: string }>)[0];
+  return { success: true, nextBattleAt: row?.next_battle_at ? Date.parse(row.next_battle_at) : undefined };
 }

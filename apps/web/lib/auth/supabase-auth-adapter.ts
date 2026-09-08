@@ -21,8 +21,8 @@ async function readError(response: Response): Promise<string> {
   catch { return 'Authentication failed'; }
 }
 
-async function ensureCharacter(token: TokenResponse): Promise<CharacterMetadata | null> {
-  const rowsResponse = await supabaseFetch('/rest/v1/characters?select=id,name,class,created_at,updated_at&order=created_at.asc&limit=1', {}, token.access_token);
+async function ensureCharacters(token: TokenResponse, preferredId?: string): Promise<{ active: CharacterMetadata; characters: CharacterMetadata[] } | null> {
+  const rowsResponse = await supabaseFetch('/rest/v1/characters?select=id,name,class,created_at,updated_at&archived_at=is.null&order=created_at.asc&limit=3', {}, token.access_token);
   if (!rowsResponse.ok) return null;
   let rows = await rowsResponse.json() as CharacterRow[];
   if (!rows.length) {
@@ -34,13 +34,17 @@ async function ensureCharacter(token: TokenResponse): Promise<CharacterMetadata 
     if (!insert.ok) return null;
     rows = await insert.json() as CharacterRow[];
   }
-  return rows[0] ? characterFromRow(rows[0]) : null;
+  const characters = rows.map(characterFromRow);
+  const active = characters.find((character) => character.id === preferredId) ?? characters[0];
+  return active ? { active, characters } : null;
 }
 
 async function storeToken(token: TokenResponse): Promise<StoredSupabaseSession | null> {
-  const character = await ensureCharacter(token);
-  if (!character) return null;
-  const session: StoredSupabaseSession = { accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: Date.now() + token.expires_in * 1000, userId: token.user.id, email: token.user.email ?? '', character };
+  const previous = loadSupabaseSession();
+  const result = await ensureCharacters(token, previous?.activeCharacterId);
+  if (!result) return null;
+  const character = result.active;
+  const session: StoredSupabaseSession = { accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: Date.now() + token.expires_in * 1000, userId: token.user.id, email: token.user.email ?? '', character, characters: result.characters, activeCharacterId: character.id };
   // Preserve progress created before Supabase auth, when registered saves were
   // keyed by the development username or generated character id.
   try {
@@ -50,7 +54,8 @@ async function storeToken(token: TokenResponse): Promise<StoredSupabaseSession |
     if (legacy?.characterId) migrateLocalGameSave(legacy.characterId, `account:${session.email}`);
   } catch { /* malformed legacy auth data is safely ignored */ }
   saveSupabaseSession(session);
-  await pullSupabaseGameSave(session.email, character.id);
+  migrateLocalGameSave(`account:${session.email}`, `character:${character.id}`);
+  await pullSupabaseGameSave(character.id);
   return session;
 }
 
@@ -80,14 +85,29 @@ async function restoreSession(): Promise<AuthState> {
     stored = await storeToken(await response.json() as TokenResponse);
     if (!stored) return emptyState();
   }
-  return { isAuthenticated: true, isGuest: false, session: authSession(stored), guestSession: null, character: stored.character ?? null, loading: false };
+  const rosterResponse = await supabaseFetch('/rest/v1/characters?select=id,name,class,created_at,updated_at&archived_at=is.null&order=created_at.asc&limit=3', {}, stored.accessToken);
+  if (rosterResponse.ok) {
+    const characters = (await rosterResponse.json() as CharacterRow[]).map(characterFromRow);
+    if (characters.length) {
+      stored.characters = characters;
+      stored.character = characters.find((entry) => entry.id === stored?.activeCharacterId) ?? characters[0];
+      stored.activeCharacterId = stored.character.id;
+      saveSupabaseSession(stored);
+    }
+  }
+  return { isAuthenticated: true, isGuest: false, session: authSession(stored), guestSession: null, character: stored.character ?? null, characters: stored.characters ?? (stored.character ? [stored.character] : []), activeCharacterId: stored.character?.id ?? null, loading: false };
 }
 
 async function createCharacter(request: CreateCharacterRequest): Promise<CreateCharacterResponse> {
   const stored = loadSupabaseSession(); if (!stored) return { success: false, error: 'Not authenticated' };
+  if ((stored.characters?.length ?? 1) >= 3) return { success: false, error: 'All 3 hero slots are occupied' };
   const response = await supabaseFetch('/rest/v1/characters', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ owner_id: stored.userId, name: request.name, class: request.class ?? DEFAULT_PLAYER_CLASS }) }, stored.accessToken);
   if (!response.ok) return { success: false, error: await readError(response) };
-  const row = (await response.json() as CharacterRow[])[0]; return { success: true, character: row ? characterFromRow(row) : null };
+  const row = (await response.json() as CharacterRow[])[0];
+  if (!row) return { success: false, error: 'Character could not be created' };
+  const character = characterFromRow(row);
+  stored.character = character; stored.activeCharacterId = character.id; stored.characters = [...(stored.characters ?? []), character]; saveSupabaseSession(stored);
+  return { success: true, character };
 }
 
 async function renameCharacter(request: RenameCharacterRequest): Promise<RenameCharacterResponse> {
@@ -95,11 +115,37 @@ async function renameCharacter(request: RenameCharacterRequest): Promise<RenameC
   const response = await supabaseFetch(`/rest/v1/characters?id=eq.${stored.character.id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ name: request.newName, updated_at: new Date().toISOString() }) }, stored.accessToken);
   if (!response.ok) return { success: false, error: await readError(response) };
   const row = (await response.json() as CharacterRow[])[0]; if (!row) return { success: false, error: 'Character not found' };
-  stored.character = characterFromRow(row); saveSupabaseSession(stored); return { success: true, character: stored.character };
+  stored.character = characterFromRow(row);
+  stored.characters = (stored.characters ?? []).map((entry) => entry.id === stored.character?.id ? stored.character : entry);
+  saveSupabaseSession(stored); return { success: true, character: stored.character };
+}
+
+async function selectCharacter(characterId: string): Promise<AuthState> {
+  const stored = loadSupabaseSession();
+  const character = stored?.characters?.find((entry) => entry.id === characterId);
+  if (!stored || !character) return emptyState();
+  stored.character = character; stored.activeCharacterId = character.id; saveSupabaseSession(stored);
+  await pullSupabaseGameSave(character.id);
+  return restoreSession();
+}
+
+async function archiveCharacter(characterId: string): Promise<{ success: boolean; error?: string }> {
+  const stored = loadSupabaseSession();
+  if (!stored) return { success: false, error: 'Not authenticated' };
+  const roster = stored.characters ?? [];
+  if (roster.length <= 1) return { success: false, error: 'Your last hero cannot be archived' };
+  const response = await supabaseFetch(`/rest/v1/characters?id=eq.${encodeURIComponent(characterId)}`, {
+    method: 'PATCH', body: JSON.stringify({ archived_at: new Date().toISOString(), updated_at: new Date().toISOString() }),
+  }, stored.accessToken);
+  if (!response.ok) return { success: false, error: await readError(response) };
+  stored.characters = roster.filter((entry) => entry.id !== characterId);
+  if (stored.character?.id === characterId) stored.character = stored.characters[0];
+  stored.activeCharacterId = stored.character?.id; saveSupabaseSession(stored);
+  return { success: true };
 }
 
 export const supabaseAuthClient: AuthClient = {
-  login, register, restoreSession, createCharacter, renameCharacter,
+  login, register, restoreSession, createCharacter, renameCharacter, selectCharacter, archiveCharacter,
   loginAsGuest: developmentAuthClient.loginAsGuest,
   logout: () => { const stored = loadSupabaseSession(); if (stored) void supabaseFetch('/auth/v1/logout', { method: 'POST' }, stored.accessToken); clearSupabaseSession(); },
   exportGuestSave: developmentAuthClient.exportGuestSave,

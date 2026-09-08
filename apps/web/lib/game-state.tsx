@@ -15,10 +15,12 @@ import type { GameState, ActiveAction, QueuedAction, ActionLogEntry, GainFeed, C
 import { levelForXp } from '@premium-rpg/game-engine';
 import { usePlayer } from './use-player';
 import { useAuth } from '@/context/auth-context';
-import { baseStatsForLevel, cumulativeXpForLevel } from './player-summary';
+import { cumulativeXpForLevel } from './player-summary';
+import { derivedCombatStats } from './combat-progression';
 import { itemName, itemHeal } from './item-names';
 import { useNotifications } from '@/components/ui/notification';
 import { localGamePersistence, migrateLocalGameSave } from '@/lib/persistence/local-game-persistence';
+import { claimSupabaseDailyBattle } from '@/lib/persistence/supabase-game-sync';
 
 export type { GameState, ActiveAction, QueuedAction, ActionLogEntry, GainFeed, CombatView, SkillView };
 
@@ -69,16 +71,15 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
   // Registered saves use the account name instead of a generated character
   // id, so a rebuilt deployment or restored character snapshot cannot point
   // progression at a brand-new storage key.
-  const accountId = authState.isAuthenticated && !authState.isGuest
-    ? authState.session?.playerId
-    : null;
-  const playerId = accountId ? `account:${accountId}` : player.id;
+  const characterId = authState.isAuthenticated && !authState.isGuest ? authState.character?.id : null;
+  const playerId = characterId ? `character:${characterId}` : player.id;
 
   const [state, setState] = useState<GameState>(() => {
     migrateLocalGameSave(player.id, playerId);
     return mergeSeed({
       playerId,
       playerName: player.name,
+      characterClass: authState.character?.class,
       skills: player.skills,
       combatLevel: player.combatLevel,
       equipment: player.equipment,
@@ -100,6 +101,7 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
     const client = new LocalGameClient({
       playerId,
       playerName: p.name,
+      characterClass: authState.character?.class,
       skills: p.skills,
       combatLevel: p.combatLevel,
       equipment: p.equipment,
@@ -114,14 +116,14 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
       clientRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerId, resetNonce]);
+  }, [playerId, resetNonce, authState.character?.class]);
 
   const run = useCallback((op: (client: GameClient) => void) => {
     const client = clientRef.current;
     if (client) op(client);
   }, []);
 
-  const stats = baseStatsForLevel(state.combatLevel);
+  const stats = derivedCombatStats(state.combatLevel, state.characterClass, state.equipment);
   const maxHealth = stats.maxHealth;
 
   const skillView = useCallback(
@@ -158,7 +160,16 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
   const claimTask = useCallback((taskId: string) => run((c) => c.claimTask(taskId)), [run]);
   const setSelectedSkill = useCallback((skill: SkillId) => run((c) => c.setSelectedSkill(skill)), [run]);
   const setCombatTarget = useCallback((regionId: string, enemyId: string) => run((c) => c.setCombatTarget(regionId, enemyId)), [run]);
-  const fight = useCallback(() => run((c) => c.fight()), [run]);
+  const fight = useCallback(async () => {
+    if (characterId) {
+      const claim = await claimSupabaseDailyBattle(characterId);
+      if (!claim.success) {
+        addNotification('danger', 'Battle unavailable', claim.error ?? 'Try again later.');
+        return;
+      }
+    }
+    run((c) => c.fight());
+  }, [characterId, run, addNotification]);
   const toggleAutoFight = useCallback(() => run((c) => c.toggleAutoFight()), [run]);
   const toggleRest = useCallback(() => run((c) => c.toggleRest()), [run]);
   const eatFood = useCallback(() => run((c) => c.eatFood()), [run]);

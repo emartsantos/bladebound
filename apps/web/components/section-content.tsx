@@ -28,7 +28,9 @@ import { DungeonsSection } from '@/components/DungeonsSection';
 import { getPlayerClass } from '@/lib/classes';
 import { assetPath } from '@/lib/asset-path';
 import { APP_VERSION_LABEL } from '@/lib/version';
+import { equipmentPower } from '@/lib/combat-progression';
 import { checkSupabaseReadiness, type SupabaseReadiness } from '@/lib/supabase/config';
+import { useAuth } from '@/context/auth-context';
 
 // ── SHARED HELPERS ──────────────────────────────────────────────
 
@@ -53,10 +55,14 @@ function RarityLabel({ id, name }: { id: string; name: string }) {
 
 function CharacterSection() {
   const { player: p, baseStats, characterClass } = usePlayer();
+  const { state: authState, selectCharacter, createCharacter, archiveCharacter } = useAuth();
+  const [newHeroName, setNewHeroName] = useState('');
+  const [heroMessage, setHeroMessage] = useState('');
   const { state, skillView, maxHealth } = useGame();
   const combat = state.combat;
   const hpPct = Math.max(0, Math.min(100, Math.round((combat.playerHp / maxHealth) * 100)));
   const totalLevel = state.combatLevel + SKILL_ORDER.reduce((sum, id) => sum + skillView(id).level, 0);
+  const power = equipmentPower(state.equipment);
 
   // Combat progress uses the same XP/level math as skill bars (xp within the
   // current level over the xp required for the next) — not XP modulo 100.
@@ -94,6 +100,33 @@ function CharacterSection() {
         }
       />
 
+      {(authState.characters?.length ?? 0) > 0 && (
+        <Panel header={<><PanelLabel>Hero roster</PanelLabel><span className="ml-auto font-mono text-[10px] text-stone">{authState.characters?.length ?? 0} / 3 slots</span></>}>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {authState.characters?.map((hero) => {
+              const active = hero.id === authState.character?.id;
+              return (
+                <button key={hero.id} disabled={active} onClick={() => void selectCharacter(hero.id)} className={`rounded-sm border p-3 text-left transition-colors ${active ? 'border-bronze/60 bg-bronze/10' : 'border-iron bg-charcoal hover:border-bronze/40'}`}>
+                  <div className="truncate text-xs font-semibold text-bone">{hero.name}</div>
+                  <div className="mt-1 text-[10px] text-stone">{getPlayerClass(hero.class ?? 'warrior').name} · Lv {hero.combatLevel}</div>
+                  <div className={`mt-2 text-[9px] uppercase tracking-wider ${active ? 'text-verdantBright' : 'text-bronzeLight'}`}>{active ? 'Active hero' : 'Select hero'}</div>
+                  {!active && (authState.characters?.length ?? 0) > 1 && (
+                    <span role="button" tabIndex={0} onClick={(event) => { event.stopPropagation(); void archiveCharacter(hero.id).then((result) => setHeroMessage(result.success ? 'Hero archived.' : (result.error ?? 'Archive failed.'))); }} className="mt-2 inline-block text-[9px] text-dangerBright hover:underline">Archive</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {(authState.characters?.length ?? 0) < 3 && (
+            <div className="mt-3 flex flex-wrap gap-2 border-t border-iron/60 pt-3">
+              <input value={newHeroName} maxLength={24} onChange={(event) => setNewHeroName(event.target.value)} placeholder="New hero name" className="min-w-40 flex-1 rounded-sm border border-iron bg-charcoal px-2.5 py-1.5 text-xs text-bone outline-none focus:border-bronze/60" />
+              <GameButton variant="secondary" disabled={newHeroName.trim().length < 2} onClick={() => void createCharacter({ name: newHeroName.trim(), class: 'warrior' }).then((result) => { setHeroMessage(result.success ? 'Hero created and selected.' : (result.error ?? 'Creation failed.')); if (result.success) setNewHeroName(''); })}>Create hero</GameButton>
+            </div>
+          )}
+          {heroMessage && <p className="mt-2 text-[10px] text-mist">{heroMessage}</p>}
+        </Panel>
+      )}
+
       {/* Identity + vitals */}
       <Panel
         header={
@@ -105,6 +138,7 @@ function CharacterSection() {
               <div className="flex items-baseline gap-2">
                 <h2 className="truncate font-display text-[15px] font-semibold text-bone">{p.name}</h2>
                 <span className="font-mono text-[11px] text-stone">Lv {state.combatLevel}</span>
+                <span className="font-mono text-[11px] text-bronzeLight">Power {power}</span>
                 {characterClass && (
                   <span className="rounded-sm border border-bronze/40 bg-bronze/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-bronzeLight">
                     {getPlayerClass(characterClass).name}
@@ -283,8 +317,7 @@ const SLOT_LABEL: Record<string, string> = {
 };
 
 function EquipmentSection() {
-  const { baseStats } = usePlayer();
-  const { state, repairAll, equipItem, unequipItem } = useGame();
+  const { state, stats: baseStats, repairAll, equipItem, unequipItem } = useGame();
   const equipment = state.equipment;
 
   const summaryStats = [

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import {
-  LuBed, LuDrumstick, LuLock, LuMap, LuPause, LuPlay, LuSwords, LuX, LuClock3,
+  LuBed, LuDrumstick, LuLock, LuMap, LuSwords, LuX, LuClock3,
 } from 'react-icons/lu';
 import type { EnemyCategory } from '@premium-rpg/shared-types';
 import { ALL_REGIONS, ALL_ENEMIES, LOOT_TABLES } from '@premium-rpg/game-data';
@@ -44,7 +44,7 @@ const CATEGORY_COLOR: Record<EnemyCategory, string> = {
 
 export function FightWorkspace() {
   const { player } = usePlayer();
-  const { state, stats, maxHealth, fight, toggleAutoFight, toggleRest, eatFood, clearCombatLog, setCombatTarget } = useGame();
+  const { state, stats, maxHealth, fight, toggleRest, eatFood, clearCombatLog, setCombatTarget } = useGame();
   const combat = state.combat;
   const now = useNow(100);
 
@@ -73,6 +73,9 @@ export function FightWorkspace() {
   const enemyHpPct = enemy ? Math.max(0, Math.min(100, Math.round((combat.enemyHp / enemy.maxHealth) * 100))) : 100;
   const enemyHp = enemy ? Math.min(combat.enemyHp, enemy.maxHealth) : 0;
   const fightActive = combat.encounter !== null && !combat.encounter.finished;
+  const cooldownMs = Math.max(0, state.dailyBattle.nextBattleAt - now);
+  const battleReady = cooldownMs <= 0;
+  const cooldownLabel = battleReady ? 'Ready now' : `${Math.floor(cooldownMs / 3_600_000)}h ${Math.floor((cooldownMs % 3_600_000) / 60_000)}m ${Math.floor((cooldownMs % 60_000) / 1000)}s`;
 
   // Round clock (presentation): where are we inside the current round.
   let roundPct = 0;
@@ -84,8 +87,6 @@ export function FightWorkspace() {
     roundLabel = `Round ${combat.encounter.round} · striking`;
   } else if (combat.resting) {
     roundLabel = 'Resting — campfire heal';
-  } else if (combat.autoFight) {
-    roundLabel = 'Auto-hunt — seeking next foe';
   }
 
   const foodCount = Object.entries(state.inventory).reduce((n, [id, qty]) => (itemBucket(id) === 'food' ? n + qty : n), 0);
@@ -176,19 +177,14 @@ export function FightWorkspace() {
         )}
 
         {/* Controls */}
+        <div className="flex items-center justify-between rounded-sm border border-iron/70 bg-charcoal/60 px-3 py-2 text-[11px]">
+          <span className="text-mist">Daily rewarded battle</span>
+          <span className={`font-mono ${battleReady ? 'text-verdantBright' : 'text-emberLight'}`}>{cooldownLabel}</span>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
-          <GameButton variant="primary" disabled={!enemy || combat.playerHp <= 0 || fightActive} onClick={fight}>
+          <GameButton variant="primary" disabled={!enemy || combat.playerHp <= 0 || fightActive || !battleReady} onClick={fight}>
             <LuSwords className="h-3.5 w-3.5" /> Fight
           </GameButton>
-          {!combat.autoFight ? (
-            <GameButton variant="secondary" disabled={!enemy || combat.playerHp <= 0} onClick={toggleAutoFight}>
-              <LuPlay className="h-3 w-3" /> Auto-fight
-            </GameButton>
-          ) : (
-            <GameButton variant="danger" onClick={toggleAutoFight}>
-              <LuPause className="h-3 w-3" /> Stop auto
-            </GameButton>
-          )}
           <GameButton variant={combat.resting ? 'success' : 'secondary'} disabled={combat.playerHp >= maxHealth && combat.playerHp > 0} onClick={toggleRest}>
             <LuBed className="h-3 w-3" /> Rest
           </GameButton>

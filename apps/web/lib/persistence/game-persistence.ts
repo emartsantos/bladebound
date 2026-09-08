@@ -1,7 +1,26 @@
 import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, PlayerTaskState } from '@premium-rpg/shared-types';
 import type { ActiveAction, QueuedAction } from '@/lib/game/service';
 
-export const GAME_SAVE_SCHEMA_VERSION = 2;
+export const GAME_SAVE_SCHEMA_VERSION = 3;
+
+export interface BattleHistoryEntry {
+  id: string;
+  enemyId: string;
+  regionId: string;
+  startedAt: number;
+  completedAt: number;
+  result: 'victory' | 'defeat';
+  xp: number;
+  gold: number;
+  loot: Array<{ itemId: string; quantity: number }>;
+}
+
+export interface DailyBattleState {
+  nextBattleAt: number;
+  activeAttemptId: string | null;
+  activeStartedAt: number | null;
+  history: BattleHistoryEntry[];
+}
 
 export interface EconomyTransaction {
   id: string;
@@ -43,6 +62,8 @@ export interface GameSaveData {
   task?: PlayerTaskState;
   /** Append-only audit trail for every persisted economy/progression change. */
   ledger?: EconomyTransaction[];
+  /** Per-hero rewarded battle cooldown and recent result history. */
+  dailyBattle?: DailyBattleState;
 }
 
 /** Upgrade older browser/cloud saves without discarding valid zero balances. */
@@ -57,6 +78,12 @@ export function migrateGameSave(input: GameSaveData): GameSaveData {
     inventory: source.inventory ?? {},
     durability: source.durability ?? {},
     ledger: Array.isArray(source.ledger) ? source.ledger.slice(-500) : [],
+    dailyBattle: {
+      nextBattleAt: Math.max(0, source.dailyBattle?.nextBattleAt ?? 0),
+      activeAttemptId: source.dailyBattle?.activeAttemptId ?? null,
+      activeStartedAt: source.dailyBattle?.activeStartedAt ?? null,
+      history: Array.isArray(source.dailyBattle?.history) ? source.dailyBattle.history.slice(-30) : [],
+    },
   };
 }
 
