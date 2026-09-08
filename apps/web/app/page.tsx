@@ -3,6 +3,7 @@
 import { useAuth } from '@/context/auth-context';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { LuSwords, LuLogIn, LuScrollText, LuUserPlus, LuChevronLeft } from 'react-icons/lu';
 import { PLAYER_CLASSES, PLAYER_CLASS_BY_ID, DEFAULT_PLAYER_CLASS } from '@/lib/classes';
 import type { PlayerClassId } from '@/lib/classes';
@@ -199,6 +200,12 @@ export default function HomePage() {
               </div>
             )}
           </div>
+          <p className="mt-4 text-center text-[11px] text-stone">
+            Open-source artwork is credited in the{' '}
+            <Link href="/credits" className="text-mist transition-colors hover:text-bone">
+              art credits
+            </Link>.
+          </p>
         </div>
       </div>
     );

@@ -12,7 +12,7 @@ import { LuMap, LuLock, LuPause, LuPlay, LuBed, LuDrumstick, LuSkull, LuSwords, 
 import type { IconType } from 'react-icons';
 import { useGame } from '@/lib/game-state';
 import { usePlayer } from '@/lib/use-player';
-import { assetPath } from '@/lib/asset-path';
+import { enemyArt } from '@/lib/enemy-art';
 import { xpStepForLevel } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { COMBAT_STYLE_ICONS } from '@/components/game/icons';
@@ -48,13 +48,6 @@ const DANGER_TEXT: Record<DangerLevel, string> = {
   high: 'text-emberLight',
   deadly: 'text-dangerBright',
 };
-
-function enemyArt(id: string): string | null {
-  const lower = id.toLowerCase();
-  if (lower.includes('goblin')) return assetPath('/art/enemy-goblin.svg');
-  if (lower.includes('troll-king') || lower.includes('forest_troll') || lower.includes('forest-troll')) return assetPath('/art/boss-forest-troll-king.svg');
-  return null;
-}
 
 function toStatBlock(stats: BaseStats): StatBlock {
   return { ...stats, damage: Math.floor(stats.strength * 0.9), defense: Math.floor(stats.armor * 0.6) };

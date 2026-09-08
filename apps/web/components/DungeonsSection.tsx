@@ -13,6 +13,7 @@ import { useGame } from '@/lib/game-state';
 import { itemName } from '@/lib/item-names';
 import { SectionHeader, Panel, PanelLabel, GameButton, Bar, EmptyState } from '@/components/game/primitives';
 import { usePlayer } from '@/lib/use-player';
+import { enemyArt } from '@/lib/enemy-art';
 
 const MODIFIER_LABEL: Record<string, string> = {
   defensive: 'Defensive',
@@ -38,6 +39,8 @@ function enemyName(id: string | undefined): string {
 
 function EncounterRow({ encounter, isCurrent }: { encounter: DungeonEncounter; isCurrent: boolean }) {
   const mods = (encounter.modifiers ?? []).map((m) => MODIFIER_LABEL[m]).filter(Boolean);
+  const representativeEnemy = encounter.enemyId ?? encounter.enemyIds?.[0];
+  const art = representativeEnemy ? enemyArt(representativeEnemy) : null;
   return (
     <div
       className={`flex items-center gap-3 rounded-sm border p-2.5 ${
@@ -45,7 +48,13 @@ function EncounterRow({ encounter, isCurrent }: { encounter: DungeonEncounter; i
       }`}
     >
       <span className="flex h-7 w-7 items-center justify-center rounded-sm border border-iron/70 bg-charcoal text-bronze">
-        {encounter.type === 'boss' ? <LuFlame className="h-3.5 w-3.5" /> : <LuSwords className="h-3.5 w-3.5" />}
+        {art ? (
+          <img src={art} alt="" className="h-6 w-6 object-contain" />
+        ) : encounter.type === 'boss' ? (
+          <LuFlame className="h-3.5 w-3.5" />
+        ) : (
+          <LuSwords className="h-3.5 w-3.5" />
+        )}
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">

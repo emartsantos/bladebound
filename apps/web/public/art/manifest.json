@@ -5,7 +5,19 @@
     "flat ink-wash shading, no gradients",
     "line work only from PALETTE colors",
     "selective ember #d4692f accents",
-    "no photorealistic, cartoon, stock, or generic assets"
+    "no photorealistic or cartoon assets",
+    "third-party silhouettes must be palette-adapted and attributed"
+  ],
+  "externalSources": [
+    {
+      "directory": "creatures",
+      "source": "https://game-icons.net/",
+      "repository": "https://github.com/game-icons/icons",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "authors": ["Lorc", "Delapouite", "Skoll", "Carl Olsen"],
+      "usage": "Palette-adapted bestiary medallions; see /credits and THIRD_PARTY_NOTICES.md"
+    }
   ],
   "assets": [
     {
