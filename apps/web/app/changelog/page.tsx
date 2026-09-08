@@ -24,6 +24,16 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.1.7',
+    type: 'patch',
+    date: '2026-09-08',
+    changes: [
+      { category: 'Added', description: 'Live Supabase project configuration in the GitHub Pages build' },
+      { category: 'Added', description: 'Supabase schema-readiness status in Settings' },
+      { category: 'Security', description: 'Browser integration uses only the public publishable key; privileged keys remain server-only' },
+    ],
+  },
+  {
     version: 'v0.1.6',
     type: 'patch',
     date: '2026-09-08',

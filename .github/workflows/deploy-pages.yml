@@ -20,6 +20,10 @@ env:
   # build bakes this into basePath (links, /_next assets) and via
   # NEXT_PUBLIC_BASE_PATH for raw asset paths.
   NEXT_PUBLIC_BASE_PATH: /bladebound
+  NEXT_PUBLIC_SUPABASE_URL: https://tannyfreqgsohknuwfgv.supabase.co
+  # Supabase publishable keys are intentionally safe to embed in browser apps;
+  # authorization is enforced by the database RLS policies.
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_AzJacxpWG2TJLUhYHNeJXA__QsxJRG9
 
 jobs:
   build:

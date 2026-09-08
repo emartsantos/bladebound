@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { SectionId } from '@premium-rpg/ui-tokens';
 import { RARITY_TREATMENTS } from '@premium-rpg/ui-tokens';
@@ -28,6 +28,7 @@ import { DungeonsSection } from '@/components/DungeonsSection';
 import { getPlayerClass } from '@/lib/classes';
 import { assetPath } from '@/lib/asset-path';
 import { APP_VERSION_LABEL } from '@/lib/version';
+import { checkSupabaseReadiness, type SupabaseReadiness } from '@/lib/supabase/config';
 
 // ── SHARED HELPERS ──────────────────────────────────────────────
 
@@ -609,6 +610,7 @@ const SETTING_ROWS = [
 
 function SettingsSection() {
   const { resetProgress } = useGame();
+  const [supabaseStatus, setSupabaseStatus] = useState<SupabaseReadiness>('checking');
   const [toggles, setToggles] = useState<Record<string, boolean>>({
     'Audio volume': true,
     'Music volume': true,
@@ -616,6 +618,20 @@ function SettingsSection() {
     'Reduced motion': true,
     'Notifications': true,
   });
+
+  useEffect(() => {
+    let active = true;
+    checkSupabaseReadiness().then((status) => { if (active) setSupabaseStatus(status); });
+    return () => { active = false; };
+  }, []);
+
+  const cloudStatus = {
+    checking: ['Checking…', 'text-stone'],
+    ready: ['Schema ready', 'text-verdantBright'],
+    'schema-missing': ['Apply SQL migration', 'text-bronzeLight'],
+    unconfigured: ['Not configured', 'text-stone'],
+    unreachable: ['Connection unavailable', 'text-dangerBright'],
+  }[supabaseStatus];
 
   return (
     <div className="max-w-xl space-y-4">
@@ -659,6 +675,14 @@ function SettingsSection() {
             <GameButton variant="danger" onClick={() => { if (window.confirm('Erase all progress and start over?')) resetProgress(); }}>
               Reset
             </GameButton>
+          </div>
+          <div className="divider-row" />
+          <div className="flex items-center justify-between gap-3 px-1 py-2">
+            <div>
+              <div className="text-sm text-bone">Supabase cloud</div>
+              <div className="text-[11px] text-mist">Secure account and save infrastructure</div>
+            </div>
+            <span className={`font-mono text-[11px] ${cloudStatus[1]}`}>{cloudStatus[0]}</span>
           </div>
           <div className="divider-row" />
           <Link
