@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm ci
+      - run: npm ci --install-strategy=hoisted --no-audit --no-fund
       - name: Install Detox + pods
         run: |
           npm i -D detox jest-circus @babel/core

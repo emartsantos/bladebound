@@ -23,7 +23,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - run: npm ci
+      - run: npm ci --install-strategy=hoisted --no-audit --no-fund
 
       - name: Build web app
         run: npm run build --workspace web
@@ -59,7 +59,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm ci
+      - run: npm ci --install-strategy=hoisted --no-audit --no-fund
       - run: node_modules/.bin/vercel pull --yes --environment=production --token=${{ env.VERCEL_TOKEN }}
         working-directory: apps/web
       - run: node_modules/.bin/vercel build --prod --token=${{ env.VERCEL_TOKEN }}
@@ -80,7 +80,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm ci
+      - run: npm ci --install-strategy=hoisted --no-audit --no-fund
       - name: EAS production Android build
         run: npx eas-cli build --platform android --profile production --non-interactive
         working-directory: apps/mobile
