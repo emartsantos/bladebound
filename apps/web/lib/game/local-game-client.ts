@@ -46,11 +46,19 @@ export class LocalGameClient implements GameClient {
   private readonly listeners = new Set<(state: GameState) => void>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly flushOnPageExit = () => this.flushPersistence();
+  private readonly flushOnVisibilityChange = () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      this.flushPersistence();
+    }
+  };
 
   constructor(config: SeedConfig) {
     this.config = config;
     this.state = mergeSeed(config);
     this.timer = setInterval(() => this.applyTick(), TICK_MS);
+    if (typeof window !== 'undefined') window.addEventListener('pagehide', this.flushOnPageExit);
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this.flushOnVisibilityChange);
   }
 
   getState(): GameState {
@@ -80,6 +88,12 @@ export class LocalGameClient implements GameClient {
       this.persistTimer = null;
       this.config.persistence.save(this.config.playerId, gameToSaveData(this.state));
     }, 800);
+  }
+
+  private flushPersistence(): void {
+    if (this.persistTimer) clearTimeout(this.persistTimer);
+    this.persistTimer = null;
+    this.config.persistence.save(this.config.playerId, gameToSaveData(this.state));
   }
 
   // ---- gathering / crafting ----
@@ -190,10 +204,9 @@ export class LocalGameClient implements GameClient {
   dispose(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    if (this.persistTimer) {
-      clearTimeout(this.persistTimer);
-      this.persistTimer = null;
-    }
+    this.flushPersistence();
+    if (typeof window !== 'undefined') window.removeEventListener('pagehide', this.flushOnPageExit);
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', this.flushOnVisibilityChange);
     this.listeners.clear();
   }
 }

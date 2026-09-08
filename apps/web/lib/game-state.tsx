@@ -14,10 +14,11 @@ import { mergeSeed, xpStepForLevel } from './game/service';
 import type { GameState, ActiveAction, QueuedAction, ActionLogEntry, GainFeed, CombatView, SkillView } from './game/service';
 import { levelForXp } from '@premium-rpg/game-engine';
 import { usePlayer } from './use-player';
+import { useAuth } from '@/context/auth-context';
 import { baseStatsForLevel, cumulativeXpForLevel } from './player-summary';
 import { itemName, itemHeal } from './item-names';
 import { useNotifications } from '@/components/ui/notification';
-import { localGamePersistence } from '@/lib/persistence/local-game-persistence';
+import { localGamePersistence, migrateLocalGameSave } from '@/lib/persistence/local-game-persistence';
 
 export type { GameState, ActiveAction, QueuedAction, ActionLogEntry, GainFeed, CombatView, SkillView };
 
@@ -63,11 +64,19 @@ export function useGame(): GameContextValue {
 
 export function GameProvider({ children, resetNonce }: { children: ReactNode; resetNonce?: number }) {
   const { player } = usePlayer();
+  const { state: authState } = useAuth();
   const { addNotification } = useNotifications();
-  const playerId = player.id;
+  // Registered saves use the account name instead of a generated character
+  // id, so a rebuilt deployment or restored character snapshot cannot point
+  // progression at a brand-new storage key.
+  const accountId = authState.isAuthenticated && !authState.isGuest
+    ? authState.session?.playerId
+    : null;
+  const playerId = accountId ? `account:${accountId}` : player.id;
 
-  const [state, setState] = useState<GameState>(() =>
-    mergeSeed({
+  const [state, setState] = useState<GameState>(() => {
+    migrateLocalGameSave(player.id, playerId);
+    return mergeSeed({
       playerId,
       playerName: player.name,
       skills: player.skills,
@@ -75,8 +84,8 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
       equipment: player.equipment,
       gold: player.currency.gold,
       persistence: localGamePersistence,
-    }),
-  );
+    });
+  });
 
   const clientRef = useRef<GameClient | null>(null);
   const playerRef = useRef(player);
@@ -87,6 +96,7 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
   // the client persists for the lifetime of this provider.
   useEffect(() => {
     const p = playerRef.current;
+    migrateLocalGameSave(p.id, playerId);
     const client = new LocalGameClient({
       playerId,
       playerName: p.name,

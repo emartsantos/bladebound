@@ -24,6 +24,16 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.1.4',
+    type: 'hotfix',
+    date: '2026-09-08',
+    changes: [
+      { category: 'Fixed', description: 'Character progression no longer resets when a new website update is deployed' },
+      { category: 'Changed', description: 'Registered saves now use a stable account key and automatically migrate existing character saves' },
+      { category: 'Changed', description: 'Progress is flushed when leaving or updating the page and kept in a separate recovery copy' },
+    ],
+  },
+  {
     version: 'v0.1.3',
     type: 'patch',
     date: '2026-09-08',
