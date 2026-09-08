@@ -57,6 +57,22 @@ import {
   claimTask,
   getCurrentTasks,
   type SkillName,
+  createQuestState,
+  startQuest,
+  processQuestEvent,
+  completeQuest,
+  isQuestCompletable,
+  isQuestAvailable,
+  createAchievementState,
+  processAchievementEvent,
+  createCollectionState,
+  registerEntries,
+  processCollectionEvent,
+  createEmptyBestiary,
+  discoverEnemy,
+  recordEnemyDefeat,
+  dailyKey,
+  weeklyKey,
 } from '@premium-rpg/game-engine';
 import {
   ALL_ENEMIES,
@@ -70,12 +86,18 @@ import {
   ALL_TASKS,
   TASK_BY_ID,
   DEFAULT_TASK_SELECTION,
+  QUESTS,
+  QUEST_BY_ID,
+  ACHIEVEMENTS,
+  COLLECTION_ENTRIES,
+  COLLECTION_SET_REWARDS,
 } from '@premium-rpg/game-data';
 import { baseStatsForLevel, cumulativeXpForLevel } from '@/lib/player-summary';
 import { itemName, itemHeal } from '@/lib/item-names';
 import { GAME_SAVE_SCHEMA_VERSION, type EconomyTransaction, type GamePersistence, type GameSaveData } from '@/lib/persistence/game-persistence';
 import type { DungeonCombatSlice } from '@/lib/persistence/game-persistence';
 import type { DailyBattleState, BattleHistoryEntry } from '@/lib/persistence/game-persistence';
+import type { RetentionState } from '@/lib/persistence/game-persistence';
 import { COMBAT_LEVEL_CAP, derivedCombatStats } from '@/lib/combat-progression';
 
 export const TICK_MS = 250;
@@ -174,6 +196,11 @@ export interface GameState {
   task: PlayerTaskState;
   ledger: EconomyTransaction[];
   dailyBattle: DailyBattleState;
+  quest: import('@premium-rpg/shared-types').PlayerQuestState;
+  achievement: import('@premium-rpg/shared-types').PlayerAchievementState;
+  collection: import('@premium-rpg/shared-types').PlayerCollectionState;
+  bestiary: import('@premium-rpg/shared-types').BestiaryState;
+  retention: RetentionState;
 }
 
 export interface SkillView {
@@ -234,6 +261,35 @@ export function emptyEquipment(): EquipmentSlots {
 
 const EMPTY_DUNGEON_COMBAT: DungeonCombatSlice = { encounter: null, nextRoundAt: null, playerHp: 0 };
 
+function dayKey(now: number): string {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+function previousDayKey(now: number): string {
+  return dayKey(now - 86_400_000);
+}
+
+function seedRetention(saved: RetentionState | undefined, activeAction: ActiveAction | null, now = Date.now()): RetentionState {
+  const base: RetentionState = saved ?? {
+    loginDays: {}, loginStreak: 0, longestLoginStreak: 0, lastLoginDay: null,
+    lastSeenAt: now, offlineReport: null, mailbox: [], regionReputation: {}, visitedRegions: [], rerolls: {},
+  };
+  const today = dayKey(now);
+  const awayMs = Math.max(0, now - (base.lastSeenAt || now));
+  const next = { ...base, loginDays: { ...base.loginDays }, mailbox: [...base.mailbox], rerolls: { ...base.rerolls } };
+  if (awayMs >= 60_000) next.offlineReport = { awayMs, actionLabel: activeAction ? `${activeAction.skill} continued while away` : null, createdAt: now };
+  if (!next.loginDays[today]) {
+    next.loginStreak = next.lastLoginDay === previousDayKey(now) ? next.loginStreak + 1 : 1;
+    next.longestLoginStreak = Math.max(next.longestLoginStreak, next.loginStreak);
+    next.lastLoginDay = today;
+    next.loginDays[today] = true;
+    const gold = 50 + Math.min(7, next.loginStreak) * 25;
+    next.mailbox.unshift({ id: `login-${today}`, title: `Day ${next.loginStreak} login reward`, message: `The frontier remembers your return.`, createdAt: now, claimed: false, reward: { gold } });
+  }
+  next.lastSeenAt = now;
+  return next;
+}
+
 export function emptyDungeonState(): PlayerDungeonState {
   return createEmptyDungeonState(ALL_DUNGEONS.map((d) => d.id));
 }
@@ -253,6 +309,12 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
   const save = config.persistence.load(config.playerId);
   const task = cloneTaskState(save?.task ?? createTaskState());
   ensureCurrentTasks(task, ALL_TASKS, DEFAULT_TASK_SELECTION, new Date(), save?.combatLevel ?? 1);
+  const quest = save?.quest ?? createQuestState();
+  const achievement = save?.achievement ?? createAchievementState(ACHIEVEMENTS);
+  const collection = save?.collection ?? createCollectionState();
+  registerEntries(collection, COLLECTION_ENTRIES);
+  const bestiary = save?.bestiary ?? createEmptyBestiary(ALL_ENEMIES);
+  const retainedAction = save?.activeAction ? { ...save.activeAction, repetitionsRemaining: Math.max(1, Math.min(MAX_ACTION_REPETITIONS, save.activeAction.repetitionsRemaining ?? 1)) } : null;
   return {
     playerName: '',
     characterClass: 'warrior',
@@ -271,9 +333,7 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     inventory: needsStarterSatchel(save) ? { ...STARTING_SATCHEL } : (save?.inventory ?? {}),
     durability: save?.durability ?? {},
     equipment: save?.equipment ?? emptyEquipment(),
-    activeAction: save?.activeAction
-      ? { ...save.activeAction, repetitionsRemaining: Math.max(1, Math.min(MAX_ACTION_REPETITIONS, save.activeAction.repetitionsRemaining ?? 1)) }
-      : null,
+    activeAction: retainedAction,
     actionQueue: (save?.actionQueue ?? []).slice(0, MAX_ACTION_QUEUE).map((action) => ({
       ...action,
       repetitions: Math.max(1, Math.min(MAX_ACTION_REPETITIONS, action.repetitions ?? 1)),
@@ -305,6 +365,11 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     task,
     ledger: save?.ledger ?? [],
     dailyBattle: save?.dailyBattle ?? { nextBattleAt: 0, activeAttemptId: null, activeStartedAt: null, history: [] },
+    quest,
+    achievement,
+    collection,
+    bestiary,
+    retention: seedRetention(save?.retention, retainedAction),
   };
 }
 
@@ -366,6 +431,11 @@ export function gameToSaveData(state: GameState): GameSaveData {
     task: state.task,
     ledger: state.ledger,
     dailyBattle: state.dailyBattle,
+    quest: state.quest,
+    achievement: state.achievement,
+    collection: state.collection,
+    bestiary: state.bestiary,
+    retention: { ...state.retention, lastSeenAt: Date.now() },
   };
 }
 
@@ -385,13 +455,129 @@ export function reduceTaskEvent(prev: GameState, event: QuestEvent, now = Date.n
   const task = cloneTaskState(prev.task);
   ensureCurrentTasks(task, ALL_TASKS, DEFAULT_TASK_SELECTION, new Date(now), prev.combatLevel);
   const result = processTaskEvent(task, new Date(now), event);
-  if (result.changed.length === 0) return prev;
   const completedGains = result.newlyCompleted.map((assignment) => ({
     id: nextId(),
     text: `Task complete: ${TASK_BY_ID[assignment.taskId]?.name ?? assignment.taskId}`,
     kind: 'rare' as const,
   }));
-  return { ...prev, task, gains: pushGains(prev.gains, completedGains) };
+  let next: GameState = result.changed.length > 0 ? { ...prev, task, gains: pushGains(prev.gains, completedGains) } : prev;
+
+  const quest = structuredClone(next.quest);
+  const questContext = {
+    level: next.combatLevel,
+    skills: Object.fromEntries(Object.entries(next.skills).map(([id, xp]) => [id, levelForXp(xp)])),
+    region: next.combat.regionId,
+    unlocks: quest.unlocks,
+    completedQuestIds: Object.keys(quest.completed),
+  };
+  for (const definition of QUESTS.filter((entry) => entry.category === 'main')) {
+    if (isQuestAvailable(definition, quest, questContext)) startQuest(quest, definition, now);
+  }
+  processQuestEvent(quest, QUEST_BY_ID, event, now);
+
+  let gold = next.gold;
+  let combatXp = next.combatXp;
+  let inventory = next.inventory;
+  let skills = next.skills;
+  const collection = structuredClone(next.collection);
+  const retention = structuredClone(next.retention);
+  const questGains: GainFeed[] = [];
+  for (const [questId, progress] of Object.entries(quest.active)) {
+    if (!isQuestCompletable(progress)) continue;
+    const definition = QUEST_BY_ID[questId];
+    if (!definition) continue;
+    const grant = completeQuest(quest, definition, now);
+    if (!grant) continue;
+    gold += grant.gold;
+    combatXp += grant.experience;
+    for (const item of grant.items) inventory = addInventory(inventory, item.itemId, item.quantity);
+    skills = { ...skills };
+    for (const [skillId, xp] of Object.entries(grant.skillExperience)) if (skillId in skills) skills[skillId as SkillId] += xp;
+    for (const entryId of grant.collectionEntries) processCollectionEvent(collection, COLLECTION_ENTRIES, COLLECTION_SET_REWARDS, { type: 'grant_entry', entryId }, now);
+    for (const title of grant.titles) processCollectionEvent(collection, COLLECTION_ENTRIES, COLLECTION_SET_REWARDS, { type: 'title_earned', title }, now);
+    retention.mailbox.unshift({ id: `quest-${questId}-${now}`, title: `Quest complete: ${definition.name}`, message: `Rewards delivered: ${grant.gold} gold and ${grant.experience} XP.`, createdAt: now, claimed: true });
+    questGains.push({ id: nextId(), text: `Quest complete · ${definition.name}`, kind: 'rare' });
+  }
+
+  let bestiary = structuredClone(next.bestiary);
+  let collectionEvent: import('@premium-rpg/shared-types').CollectionEvent | null = null;
+  if (event.type === 'enemy_killed' && typeof event.enemyId === 'string') {
+    const enemy = ALL_ENEMIES.find((entry) => entry.id === event.enemyId);
+    if (enemy) {
+      bestiary = recordEnemyDefeat(discoverEnemy(bestiary, enemy.id), enemy, [], LOOT_TABLES, ITEM_BY_ID, now);
+      retention.regionReputation[enemy.regionId] = (retention.regionReputation[enemy.regionId] ?? 0) + (enemy.category === 'boss' ? 10 : enemy.category === 'elite' ? 3 : 1);
+      collectionEvent = { type: 'enemy_defeated', enemyId: enemy.id };
+    }
+  } else if (event.type === 'item_collected' && typeof event.itemId === 'string') {
+    collectionEvent = { type: 'item_acquired', itemId: event.itemId, quantity: typeof event.quantity === 'number' ? event.quantity : 1 };
+  } else if (event.type === 'item_crafted' && typeof event.itemId === 'string') {
+    collectionEvent = { type: 'item_crafted', itemId: event.itemId };
+  } else if (event.type === 'region_visited' && typeof event.regionId === 'string') {
+    collectionEvent = { type: 'region_visited', regionId: event.regionId };
+    if (!retention.visitedRegions.includes(event.regionId)) retention.visitedRegions.push(event.regionId);
+  } else if (event.type === 'dungeon_completed' && typeof event.dungeonId === 'string') {
+    collectionEvent = { type: 'dungeon_completed', dungeonId: event.dungeonId };
+  }
+  if (collectionEvent) processCollectionEvent(collection, COLLECTION_ENTRIES, COLLECTION_SET_REWARDS, collectionEvent, now);
+
+  const achievement = structuredClone(next.achievement);
+  const achievementEvent = event.type === 'enemy_killed' ? { type: 'enemy_killed' as const, enemyId: event.enemyId as string, isElite: ALL_ENEMIES.find((e) => e.id === event.enemyId)?.category !== 'normal' }
+    : event.type === 'resource_gathered' ? { type: 'resource_gathered' as const, quantity: event.quantity as number }
+      : event.type === 'item_crafted' ? { type: 'item_crafted' as const, itemId: event.itemId as string, quantity: event.quantity as number }
+        : event.type === 'item_collected' ? { type: 'item_collected' as const, itemId: event.itemId as string, quantity: event.quantity as number }
+          : event.type === 'dungeon_completed' ? { type: 'dungeon_completed' as const, dungeonId: event.dungeonId as string }
+            : event.type === 'region_visited' ? { type: 'region_visited' as const, regionId: event.regionId as string }
+              : null;
+  if (achievementEvent) {
+    const awarded = processAchievementEvent(achievement, ACHIEVEMENTS, {
+      level: next.combatLevel,
+      totalLevel: next.combatLevel + Object.values(skills).reduce((sum, xp) => sum + levelForXp(xp), 0),
+      skillLevel: (id) => levelForXp(skills[id as SkillId] ?? 0),
+      bestiaryDefeated: bestiary.totalDefeated,
+      bestiaryCompleted: bestiary.totalCompleted,
+      bestiaryKillCount: (id) => bestiary.entries[id]?.killCount ?? 0,
+      regionVisitedCount: retention.visitedRegions.length,
+      questCompleted: Object.keys(quest.completed).length,
+      collectionEntryCount: Object.values(collection.entries).filter((entry) => entry.collected).length,
+      titleCount: collection.titles.length,
+      playtimeHours: achievement.counters.playtime_hours as number,
+    }, achievementEvent, now).newlyAwarded;
+    for (const award of awarded) {
+      retention.mailbox.unshift({ id: `achievement-${award.achievementId}`, title: `Achievement unlocked`, message: `${ACHIEVEMENTS.find((entry) => entry.id === award.achievementId)?.name ?? award.achievementId} · ${award.points} points`, createdAt: now, claimed: true });
+      questGains.push({ id: nextId(), text: `Achievement · +${award.points} points`, kind: 'rare' });
+    }
+  }
+
+  return { ...next, quest, achievement, collection, bestiary, retention, gold, combatXp, combatLevel: Math.min(COMBAT_LEVEL_CAP, levelForXp(combatXp)), inventory, skills, gains: pushGains(next.gains, questGains) };
+}
+
+export function reduceClaimMail(prev: GameState, mailId: string): GameState {
+  const mail = prev.retention.mailbox.find((entry) => entry.id === mailId);
+  if (!mail || mail.claimed) return prev;
+  let inventory = prev.inventory;
+  for (const item of mail.reward?.items ?? []) inventory = addInventory(inventory, item.itemId, item.quantity);
+  const combatXp = prev.combatXp + (mail.reward?.combatXp ?? 0);
+  return {
+    ...prev,
+    gold: prev.gold + (mail.reward?.gold ?? 0), inventory, combatXp,
+    combatLevel: Math.min(COMBAT_LEVEL_CAP, levelForXp(combatXp)),
+    retention: { ...prev.retention, mailbox: prev.retention.mailbox.map((entry) => entry.id === mailId ? { ...entry, claimed: true } : entry) },
+  };
+}
+
+export function reduceRerollTask(prev: GameState, group: 'daily' | 'weekly', index: number, now = Date.now()): GameState {
+  const task = cloneTaskState(prev.task);
+  const cycleKey = group === 'daily' ? dailyKey(new Date(now)) : weeklyKey(new Date(now));
+  const rerollKey = `${group}:${cycleKey}`;
+  if ((prev.retention.rerolls[rerollKey] ?? 0) >= 1) return prev;
+  const current = getCurrentTasks(task, new Date(now));
+  const assignments = group === 'daily' ? current.daily : current.weekly;
+  const target = assignments[index];
+  if (!target || target.current > 0 || target.completed) return prev;
+  const replacement = ALL_TASKS.find((definition) => definition.group === group && !assignments.some((entry) => entry.taskId === definition.id));
+  if (!replacement) return prev;
+  assignments[index] = { taskId: replacement.id, group, objectiveType: replacement.objective.type, objectiveTarget: replacement.objective.targetId ?? null, skillId: replacement.objective.skillId ?? null, regionId: replacement.objective.regionId ?? null, required: replacement.objective.required, current: 0, completed: false, claimed: false, assignedAt: now };
+  return { ...prev, task, retention: { ...prev.retention, rerolls: { ...prev.retention.rerolls, [rerollKey]: 1 } } };
 }
 
 function rollLootFor(enemyId: string): { itemId: string; quantity: number }[] {
@@ -828,7 +1014,7 @@ export const reduceClearCombatLog = (prev: GameState): GameState => ({
 
 export function reduceSetCombatTarget(prev: GameState, regionId: string, enemyId: string): GameState {
   const enemy = ALL_ENEMIES.find((e) => e.id === enemyId);
-  return {
+  const next = {
     ...prev,
     combat: {
       ...prev.combat,
@@ -841,6 +1027,7 @@ export function reduceSetCombatTarget(prev: GameState, regionId: string, enemyId
       playerHp: Math.max(1, prev.combat.playerHp),
     },
   };
+  return reduceTaskEvent(next, { type: 'region_visited', regionId });
 }
 
 export function reduceFight(prev: GameState): GameState {
@@ -955,7 +1142,7 @@ export function reduceEquipItem(prev: GameState, slot: EquipmentSlot, itemId: st
   equipment[slot] = newItem;
 
   const now = Date.now();
-  return {
+  const next = {
     ...prev,
     inventory,
     equipment,
@@ -964,6 +1151,7 @@ export function reduceEquipItem(prev: GameState, slot: EquipmentSlot, itemId: st
       ...prev.actionLog,
     ].slice(0, 60),
   };
+  return reduceTaskEvent(next, { type: 'item_equipped', slot, itemId }, now);
 }
 
 export function reduceUnequipItem(prev: GameState, slot: EquipmentSlot): GameState {

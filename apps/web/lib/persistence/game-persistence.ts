@@ -1,7 +1,29 @@
-import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, PlayerTaskState } from '@premium-rpg/shared-types';
+import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, PlayerTaskState, PlayerQuestState, PlayerAchievementState, PlayerCollectionState, BestiaryState } from '@premium-rpg/shared-types';
 import type { ActiveAction, QueuedAction } from '@/lib/game/service';
 
-export const GAME_SAVE_SCHEMA_VERSION = 3;
+export const GAME_SAVE_SCHEMA_VERSION = 4;
+
+export interface RetentionMail {
+  id: string;
+  title: string;
+  message: string;
+  createdAt: number;
+  claimed: boolean;
+  reward?: { gold?: number; combatXp?: number; items?: Array<{ itemId: string; quantity: number }> };
+}
+
+export interface RetentionState {
+  loginDays: Record<string, boolean>;
+  loginStreak: number;
+  longestLoginStreak: number;
+  lastLoginDay: string | null;
+  lastSeenAt: number;
+  offlineReport: { awayMs: number; actionLabel: string | null; createdAt: number } | null;
+  mailbox: RetentionMail[];
+  regionReputation: Record<string, number>;
+  visitedRegions: string[];
+  rerolls: Record<string, number>;
+}
 
 export interface BattleHistoryEntry {
   id: string;
@@ -64,6 +86,11 @@ export interface GameSaveData {
   ledger?: EconomyTransaction[];
   /** Per-hero rewarded battle cooldown and recent result history. */
   dailyBattle?: DailyBattleState;
+  quest?: PlayerQuestState;
+  achievement?: PlayerAchievementState;
+  collection?: PlayerCollectionState;
+  bestiary?: BestiaryState;
+  retention?: RetentionState;
 }
 
 /** Upgrade older browser/cloud saves without discarding valid zero balances. */
@@ -84,6 +111,7 @@ export function migrateGameSave(input: GameSaveData): GameSaveData {
       activeStartedAt: source.dailyBattle?.activeStartedAt ?? null,
       history: Array.isArray(source.dailyBattle?.history) ? source.dailyBattle.history.slice(-30) : [],
     },
+    retention: source.retention,
   };
 }
 

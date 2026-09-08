@@ -27,9 +27,11 @@ import {
   reduceRemoveQueuedAction,
   reduceTaskEvent,
   reduceClaimTask,
+  reduceClaimMail,
+  reduceRerollTask,
 } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
-import { levelForXp } from '@premium-rpg/game-engine';
+import { getCurrentTasks, levelForXp } from '@premium-rpg/game-engine';
 
 // ── helpers ─────────────────────────────────────────────────────
 
@@ -344,6 +346,38 @@ describe('combat', () => {
     expect(state.dailyBattle.history[0]).toMatchObject({ enemyId: 'goblin', result: 'victory' });
     const reticked = tick(state, Date.now() + 100_000);
     expect(reticked.dailyBattle.history).toHaveLength(1);
+  });
+});
+
+describe('v0.3 progression and retention', () => {
+  it('starts the main quest chain and records bestiary kills and region reputation', () => {
+    const base = mergeSeed(makeConfig({ combatLevel: 5 }));
+    const visited = reduceSetCombatTarget(base, 'starter-frontier', 'goblin');
+    expect(visited.quest.active.q_awakening).toBeDefined();
+    const progressed = reduceTaskEvent(visited, { type: 'enemy_killed', enemyId: 'goblin', regionId: 'starter-frontier' }, Date.now());
+    expect(progressed.quest.active.q_awakening.objectives.ob_kill_goblin.current).toBe(1);
+    expect(progressed.bestiary.entries.goblin.killCount).toBe(1);
+    expect(progressed.retention.regionReputation['starter-frontier']).toBe(1);
+    expect(progressed.collection.entries['enemy:goblin'].collected).toBe(true);
+  });
+
+  it('creates one claimable login reward and grants it once', () => {
+    const base = mergeSeed(makeConfig());
+    const reward = base.retention.mailbox.find((mail) => !mail.claimed);
+    expect(reward).toBeDefined();
+    const claimed = reduceClaimMail(base, reward!.id);
+    expect(claimed.gold).toBe(base.gold + (reward!.reward?.gold ?? 0));
+    expect(reduceClaimMail(claimed, reward!.id).gold).toBe(claimed.gold);
+  });
+
+  it('allows one task reroll per cycle before progress begins', () => {
+    const base = mergeSeed(makeConfig());
+    const before = getCurrentTasks(base.task, new Date()).daily[0]?.taskId;
+    const rerolled = reduceRerollTask(base, 'daily', 0);
+    const after = getCurrentTasks(rerolled.task, new Date()).daily[0]?.taskId;
+    expect(after).not.toBe(before);
+    const second = reduceRerollTask(rerolled, 'daily', 0);
+    expect(getCurrentTasks(second.task, new Date()).daily[0]?.taskId).toBe(after);
   });
 });
 

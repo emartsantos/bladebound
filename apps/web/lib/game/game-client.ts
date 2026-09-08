@@ -21,6 +21,8 @@ export interface GameClient {
   clearActionQueue(): void;
   clearActionLog(): void;
   claimTask(taskId: string): void;
+  rerollTask(group: 'daily' | 'weekly', index: number): void;
+  claimMail(mailId: string): void;
   setSelectedSkill(skill: SkillId): void;
 
   setCombatTarget(regionId: string, enemyId: string): void;

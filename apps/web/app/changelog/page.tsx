@@ -24,6 +24,21 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.3.0',
+    type: 'major',
+    date: '2026-09-08',
+    changes: [
+      { category: 'Added', description: 'Live main-story quest chains with prerequisites, objective tracking, unlocks, and rewards' },
+      { category: 'Added', description: 'Achievement progression, points, titles, cosmetics, and milestone notices' },
+      { category: 'Added', description: 'Bestiary discovery, enemy kill records, drop discoveries, and collection completion' },
+      { category: 'Added', description: 'Region reputation earned through victories and exploration' },
+      { category: 'Added', description: 'Seven-day login calendar, streak rewards, offline return report, and reward mailbox' },
+      { category: 'Added', description: 'One free daily and weekly task reroll before objective progress begins' },
+      { category: 'Changed', description: 'Collections and Achievements are now functional sections instead of placeholders' },
+      { category: 'Changed', description: 'Save schema upgraded to v4 with backward-compatible progression initialization' },
+    ],
+  },
+  {
     version: 'v0.2.0',
     type: 'major',
     date: '2026-09-08',
