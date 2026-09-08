@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   LuArrowRight, LuClock3, LuLock, LuSwords, LuX,
 } from 'react-icons/lu';
@@ -91,7 +91,7 @@ export function GatherWorkspace({ skill, activity, onNavigateActivity }: { skill
                   inventory={state.inventory}
                   hasIngredients={hasIngredients(row)}
                   onNavigateActivity={onNavigateActivity}
-                  onStart={() => startAction(skill, row.id, row.kind)}
+                  onStart={(repetitions) => startAction(skill, row.id, row.kind, repetitions)}
                   onStop={stopAction}
                 />
               </div>
@@ -151,10 +151,11 @@ function ActionRowCard({
   inventory: Record<string, number>;
   hasIngredients: boolean;
   onNavigateActivity: (id: ActivityId) => void;
-  onStart: () => void;
+  onStart: (repetitions: number) => void;
   onStop: () => void;
 }) {
   const SkillIcon = SKILL_ICONS[skill];
+  const [repetitions, setRepetitions] = useState(1);
   const locked = row.locked;
   const blocked = locked || !hasIngredients || (!active && queueFull);
   return (
@@ -188,8 +189,22 @@ function ActionRowCard({
             )}
           </div>
         </div>
+        {!active && (
+          <label className="flex shrink-0 items-center gap-1 font-mono text-[9px] text-stone" title="Number of repetitions">
+            ×
+            <input
+              type="number"
+              min={1}
+              max={1000}
+              value={repetitions}
+              onChange={(event) => setRepetitions(Math.max(1, Math.min(1000, Number(event.target.value) || 1)))}
+              className="h-7 w-16 rounded-sm border border-iron bg-black/20 px-1.5 text-right text-[10px] text-bone outline-none focus:border-bronze"
+              aria-label={`Repetitions for ${row.name}`}
+            />
+          </label>
+        )}
         <button
-          onClick={active ? onStop : onStart}
+          onClick={active ? onStop : () => onStart(repetitions)}
           disabled={blocked}
           className="btn btn-secondary h-7 shrink-0 px-2.5 font-mono text-[10px]"
         >

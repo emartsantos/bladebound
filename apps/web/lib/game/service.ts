@@ -80,6 +80,7 @@ export const TICK_MS = 250;
 export const AUTO_FIGHT_GAP_MS = 1100;
 export const REST_HEAL_FRACTION = 0.02; // of max HP per second
 export const MAX_ACTION_QUEUE = 10;
+export const MAX_ACTION_REPETITIONS = 1000;
 
 // Starter satchel for a brand-new save (no save file yet). Enough ore to try
 // mining + the Forge pipeline and a first alchemy brew, so new hunters aren't
@@ -103,9 +104,13 @@ export interface ActiveAction {
   toolId?: string | null;
   startTime: number;
   duration: number;
+  /** Number of completions still to perform, including the current run. */
+  repetitionsRemaining: number;
 }
 
-export type QueuedAction = Pick<ActiveAction, 'kind' | 'skill' | 'nodeId' | 'recipeId'>;
+export type QueuedAction = Pick<ActiveAction, 'kind' | 'skill' | 'nodeId' | 'recipeId'> & {
+  repetitions: number;
+};
 
 export interface ActionLogEntry {
   id: number;
@@ -259,8 +264,13 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     inventory: needsStarterSatchel(save) ? { ...STARTING_SATCHEL } : (save?.inventory ?? {}),
     durability: save?.durability ?? {},
     equipment: save?.equipment ?? emptyEquipment(),
-    activeAction: save?.activeAction ?? null,
-    actionQueue: (save?.actionQueue ?? []).slice(0, MAX_ACTION_QUEUE),
+    activeAction: save?.activeAction
+      ? { ...save.activeAction, repetitionsRemaining: Math.max(1, Math.min(MAX_ACTION_REPETITIONS, save.activeAction.repetitionsRemaining ?? 1)) }
+      : null,
+    actionQueue: (save?.actionQueue ?? []).slice(0, MAX_ACTION_QUEUE).map((action) => ({
+      ...action,
+      repetitions: Math.max(1, Math.min(MAX_ACTION_REPETITIONS, action.repetitions ?? 1)),
+    })),
     actionLog: [],
     gains: [],
     combatXp: save?.combatXp ?? 0,
@@ -481,6 +491,7 @@ export function tick(prev: GameState, now: number): GameState {
             ...nextActionState(advanced, {
               kind: 'gathering', skill: action.skill, nodeId: node.id,
               toolId: newTool?.id ?? null, startTime: now, duration,
+              repetitionsRemaining: action.repetitionsRemaining,
             }, now),
           };
           for (const resource of reward.resources) {
@@ -537,6 +548,7 @@ export function tick(prev: GameState, now: number): GameState {
               ...nextActionState(advanced, {
                 kind: 'crafting', skill: action.skill, recipeId: recipe.id,
                 startTime: now, duration: recipe.duration,
+                repetitionsRemaining: action.repetitionsRemaining,
               }, now),
             };
             for (const output of craft.outputs) {
@@ -686,19 +698,23 @@ function activateQueuedAction(prev: GameState, queued: QueuedAction, now: number
       toolId: tool?.id ?? null,
       startTime: now,
       duration: Math.floor(node.baseDuration / (tool ? tool.bonus.speedMultiplier : 1)),
+      repetitionsRemaining: queued.repetitions,
     };
   }
   if (queued.kind === 'crafting' && queued.recipeId) {
     const recipe = getRecipeById(queued.recipeId);
     if (!recipe || !hasIngredients(recipe, prev.inventory).canCraft) return null;
-    return { ...queued, startTime: now, duration: recipe.duration };
+    return { ...queued, startTime: now, duration: recipe.duration, repetitionsRemaining: queued.repetitions };
   }
   return null;
 }
 
-/** Advance FIFO after one completion; otherwise retain the existing repeat behavior. */
+/** Repeat the current slot until its count drains, then advance FIFO. */
 function nextActionState(prev: GameState, repeat: ActiveAction, now: number): Pick<GameState, 'activeAction' | 'actionQueue'> {
-  if (prev.actionQueue.length === 0) return { activeAction: repeat, actionQueue: [] };
+  if (repeat.repetitionsRemaining > 1) {
+    return { activeAction: { ...repeat, repetitionsRemaining: repeat.repetitionsRemaining - 1 }, actionQueue: prev.actionQueue };
+  }
+  if (prev.actionQueue.length === 0) return { activeAction: null, actionQueue: [] };
   const [next, ...rest] = prev.actionQueue;
   const activeAction = activateQueuedAction(prev, next, now);
   return activeAction ? { activeAction, actionQueue: rest } : { activeAction: null, actionQueue: [] };
@@ -709,11 +725,13 @@ export function reduceStartAction(
   skill: SkillId,
   id: string,
   kind: 'gathering' | 'crafting',
+  repetitions = 1,
 ): GameState {
   const now = Date.now();
+  const safeRepetitions = Math.max(1, Math.min(MAX_ACTION_REPETITIONS, Math.floor(repetitions) || 1));
   const queued: QueuedAction = kind === 'gathering'
-    ? { kind, skill, nodeId: id }
-    : { kind, skill, recipeId: id };
+    ? { kind, skill, nodeId: id, repetitions: safeRepetitions }
+    : { kind, skill, recipeId: id, repetitions: safeRepetitions };
   const candidate = activateQueuedAction(prev, queued, now);
   if (!candidate) return prev;
   if (!prev.activeAction) return { ...prev, activeAction: candidate };

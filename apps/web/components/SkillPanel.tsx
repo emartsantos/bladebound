@@ -30,6 +30,7 @@ export function SkillPanel() {
   const active = state.activeAction;
   const inventory = state.inventory;
   const [rareOnly, setRareOnly] = useState(false);
+  const [repetitions, setRepetitions] = useState<Record<string, number>>({});
 
   const isActiveRow = (id: string) => active && (active.nodeId === id || active.recipeId === id);
   const logLines = rareOnly ? state.actionLog.filter((l) => l.rare) : state.actionLog;
@@ -105,9 +106,26 @@ export function SkillPanel() {
                       <LuSquare className="h-3 w-3" /> Stop
                     </GameButton>
                   ) : (
-                    <GameButton variant="primary" disabled={row.locked || state.actionQueue.length >= 10} onClick={() => startAction(skill, row.id, row.kind)}>
-                      <LuPlay className="h-3 w-3" /> {active ? 'Queue' : 'Start'}
-                    </GameButton>
+                    <div className="flex items-center gap-1.5">
+                      <label className="flex items-center gap-1 font-mono text-[9px] text-stone">
+                        ×
+                        <input
+                          type="number"
+                          min={1}
+                          max={1000}
+                          value={repetitions[row.id] ?? 1}
+                          onChange={(event) => setRepetitions((current) => ({
+                            ...current,
+                            [row.id]: Math.max(1, Math.min(1000, Number(event.target.value) || 1)),
+                          }))}
+                          aria-label={`Repetitions for ${row.name}`}
+                          className="h-8 w-16 rounded-sm border border-iron bg-black/20 px-1.5 text-right text-[10px] text-bone outline-none focus:border-bronze"
+                        />
+                      </label>
+                      <GameButton variant="primary" disabled={row.locked || state.actionQueue.length >= 10} onClick={() => startAction(skill, row.id, row.kind, repetitions[row.id] ?? 1)}>
+                        <LuPlay className="h-3 w-3" /> {active ? 'Queue' : 'Start'}
+                      </GameButton>
+                    </div>
                   )}
                 </div>
               </div>

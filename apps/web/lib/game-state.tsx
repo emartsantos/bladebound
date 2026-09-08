@@ -28,7 +28,7 @@ export interface GameContextValue {
   maxHealth: number;
   skillView: (skill: SkillId) => SkillView;
   foods: FoodItem[];
-  startAction: (skill: SkillId, id: string, kind: 'gathering' | 'crafting') => void;
+  startAction: (skill: SkillId, id: string, kind: 'gathering' | 'crafting', repetitions?: number) => void;
   stopAction: () => void;
   removeQueuedAction: (index: number) => void;
   clearActionQueue: () => void;
@@ -140,7 +140,7 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
     [state.inventory],
   );
 
-  const startAction = useCallback((skill: SkillId, id: string, kind: 'gathering' | 'crafting') => run((c) => c.startAction(skill, id, kind)), [run]);
+  const startAction = useCallback((skill: SkillId, id: string, kind: 'gathering' | 'crafting', repetitions = 1) => run((c) => c.startAction(skill, id, kind, repetitions)), [run]);
   const stopAction = useCallback(() => run((c) => c.stopAction()), [run]);
   const removeQueuedAction = useCallback((index: number) => run((c) => c.removeQueuedAction(index)), [run]);
   const clearActionQueue = useCallback(() => run((c) => c.clearActionQueue()), [run]);

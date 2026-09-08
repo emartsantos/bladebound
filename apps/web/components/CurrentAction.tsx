@@ -23,6 +23,7 @@ export function CurrentAction() {
       <div className="min-w-0">
         <div className="max-w-44 truncate text-[10px] leading-none text-mist">
           {skillLabel(active.skill)} — {actionName(active.skill, active.kind, active.nodeId, active.recipeId)}
+          <span className="ml-1 font-mono text-bronzeLight">{active.repetitionsRemaining.toLocaleString()}×</span>
           {state.actionQueue.length > 0 && <span className="ml-1 text-bronze">+{state.actionQueue.length} queued</span>}
         </div>
         <div className="mt-1 flex items-center gap-2">

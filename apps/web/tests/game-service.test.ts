@@ -23,6 +23,7 @@ import {
   gameToSaveData,
   xpStepForLevel,
   MAX_ACTION_QUEUE,
+  MAX_ACTION_REPETITIONS,
   reduceRemoveQueuedAction,
   reduceTaskEvent,
   reduceClaimTask,
@@ -75,6 +76,28 @@ describe('trade action queue', () => {
     expect(advanced.activeAction?.skill).toBe('woodcutting');
     expect(advanced.activeAction?.nodeId).toBe('regular_tree');
     expect(advanced.actionQueue).toHaveLength(0);
+  });
+
+  it('repeats a queue slot the requested number of times before advancing', () => {
+    const base = mergeSeed(makeConfig());
+    const mining = reduceStartAction(base, 'mining', 'copper_vein', 'gathering', 3);
+    const queued = reduceStartAction(mining, 'woodcutting', 'regular_tree', 'gathering', 1000);
+
+    const afterOne = tick(queued, queued.activeAction!.startTime + queued.activeAction!.duration + 1);
+    expect(afterOne.activeAction?.skill).toBe('mining');
+    expect(afterOne.activeAction?.repetitionsRemaining).toBe(2);
+    expect(afterOne.actionQueue[0].repetitions).toBe(1000);
+
+    const afterTwo = tick(afterOne, afterOne.activeAction!.startTime + afterOne.activeAction!.duration + 1);
+    const advanced = tick(afterTwo, afterTwo.activeAction!.startTime + afterTwo.activeAction!.duration + 1);
+    expect(advanced.activeAction?.skill).toBe('woodcutting');
+    expect(advanced.activeAction?.repetitionsRemaining).toBe(1000);
+  });
+
+  it('clamps repetitions to the supported range', () => {
+    const base = mergeSeed(makeConfig());
+    const started = reduceStartAction(base, 'mining', 'copper_vein', 'gathering', 5000);
+    expect(started.activeAction?.repetitionsRemaining).toBe(MAX_ACTION_REPETITIONS);
   });
 
   it('caps pending trade actions at ten and supports removing one', () => {
@@ -190,22 +213,17 @@ describe('mergeSeed', () => {
 // ── gathering ───────────────────────────────────────────────────
 
 describe('gathering', () => {
-  it('grants resources and XP on completion and re-arms the action', () => {
+  it('grants resources and XP and decrements the requested repeat count', () => {
     const base = mergeSeed(makeConfig());
-    const started = reduceStartAction(base, 'mining', 'copper_vein', 'gathering');
+    const started = reduceStartAction(base, 'mining', 'copper_vein', 'gathering', 2);
     expect(started.activeAction?.nodeId).toBe('copper_vein');
 
-    // Force the action to have "completed" by starting the scheduled ticks.
-    let state = started;
-    for (let i = 0; i < 40 && state.activeAction; i += 1) {
-      state = tick(state, state.activeAction.startTime + state.activeAction.duration + 1);
-    }
+    const state = tick(started, started.activeAction!.startTime + started.activeAction!.duration + 1);
 
     expect(state.skills.mining).toBeGreaterThan(0);
     expect((state.inventory.copper_ore ?? 0)).toBeGreaterThan(6); // satchel + harvested
     expect(state.gains.some((g) => g.kind === 'xp')).toBe(true);
-    // action is re-armed for the next cycle, not stuck
-    expect(state.activeAction).not.toBeNull();
+    expect(state.activeAction?.repetitionsRemaining).toBe(1);
   });
 
   it('does not double-grant on a duplicate completed tick (re-arm guard)', () => {

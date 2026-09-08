@@ -84,8 +84,8 @@ export class LocalGameClient implements GameClient {
 
   // ---- gathering / crafting ----
 
-  startAction(skill: SkillId, id: string, kind: 'gathering' | 'crafting'): void {
-    this.setState(reduceStartAction(this.state, skill, id, kind));
+  startAction(skill: SkillId, id: string, kind: 'gathering' | 'crafting', repetitions = 1): void {
+    this.setState(reduceStartAction(this.state, skill, id, kind, repetitions));
   }
 
   stopAction(): void {

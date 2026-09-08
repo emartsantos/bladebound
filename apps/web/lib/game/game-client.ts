@@ -15,7 +15,7 @@ export interface GameClient {
   getState(): GameState;
   subscribe(listener: (state: GameState) => void): () => void;
 
-  startAction(skill: SkillId, id: string, kind: 'gathering' | 'crafting'): void;
+  startAction(skill: SkillId, id: string, kind: 'gathering' | 'crafting', repetitions?: number): void;
   stopAction(): void;
   removeQueuedAction(index: number): void;
   clearActionQueue(): void;
