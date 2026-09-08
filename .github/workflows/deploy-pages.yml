@@ -36,11 +36,11 @@ jobs:
       # `npm install` repairs the Windows-generated nested lock metadata on the
       # Linux runner and skips incompatible optional native packages.
       - name: Install dependencies
-run: |
-          if ! npm ci --install-strategy=hoisted --no-audit --no-fund; then
+        run: |
+          if ! npm install --install-strategy=hoisted --no-audit --no-fund; then
             latest=$(ls -t "$HOME/.npm/_logs/"*.log 2>/dev/null | head -1)
             echo "::error::npm ci failed; log=$latest"
-            tail -300 "$latest" 2>/dev/null | grep -E "^npm (error|ERR)" | head -25 | sed 's/^/::error::/'
+            tail -60 "$latest" 2>/dev/null | sed 's/^/::error::/'
             exit 1
           fi
 
