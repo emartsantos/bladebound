@@ -42,6 +42,8 @@ export interface GameClient {
   rerollWeapon(): void;
   rebirthHero(): void;
   reforgeHero(): void;
+  summonHero(): void;
+  runSummonedHeroBattle(heroId: string): void;
 
   buyShopItem(shopItemId: string): void;
   sellItem(itemId: string): void;

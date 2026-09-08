@@ -43,6 +43,8 @@ import {
   reduceCreateMarketplaceListing,
   reduceCancelMarketplaceListing,
   reduceBuyMarketplaceListing,
+  reduceSummonHero,
+  reduceSummonedHeroBattle,
 } from './service';
 
 /**
@@ -223,6 +225,11 @@ export class LocalGameClient implements GameClient {
   rerollWeapon(): void { if (this.heroAvailable()) this.setState(reduceRerollWeapon(this.state), 'weapon_reroll'); }
   rebirthHero(): void { if (this.heroAvailable()) this.setState(reduceRebirthHero(this.state), 'hero_rebirth'); }
   reforgeHero(): void { if (this.heroAvailable()) this.setState(reduceReforgeHero(this.state), 'hero_reforge'); }
+  summonHero(): void {
+    const key = `summon:${this.config.playerId}:${Date.now()}:${crypto.randomUUID()}`;
+    this.setState(reduceSummonHero(this.state, Math.random(), key), 'hero_summon');
+  }
+  runSummonedHeroBattle(heroId: string): void { this.setState(reduceSummonedHeroBattle(this.state, heroId), 'summoned_hero_battle'); }
 
   // ---- economy (shop) ----
 

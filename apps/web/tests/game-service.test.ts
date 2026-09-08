@@ -39,6 +39,14 @@ import {
   reduceCancelMarketplaceListing,
   reduceBuyMarketplaceListing,
   MARKETPLACE_LISTING_FEE,
+  reduceSummonHero,
+  reduceSummonedHeroBattle,
+  summonRarityForRoll,
+  SUMMON_COST,
+  SUMMON_BURN,
+  SUMMON_REWARD_POOL,
+  SUMMON_TREASURY,
+  MAX_OFFLINE_CATCHUP_PER_TICK,
 } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { getCurrentTasks, levelForXp } from '@premium-rpg/game-engine';
@@ -133,6 +141,25 @@ describe('trade action queue', () => {
     const reloaded = mergeSeed(makeConfig({ persistence }));
     expect(reloaded.activeAction?.nodeId).toBe('copper_vein');
     expect(reloaded.actionQueue[0]?.nodeId).toBe('regular_tree');
+  });
+
+  it('catches up elapsed repetitions and advances the queue after the browser was closed', () => {
+    const started = reduceStartAction(mergeSeed(makeConfig()), 'mining', 'copper_vein', 'gathering', 3);
+    const queued = reduceStartAction(started, 'woodcutting', 'regular_tree', 'gathering', 2);
+    const resumed = tick(queued, started.activeAction!.startTime + 86_400_000);
+    expect(resumed.activeAction).toBeNull();
+    expect(resumed.actionQueue).toHaveLength(0);
+    expect(resumed.skills.mining).toBeGreaterThan(0);
+    expect(resumed.skills.woodcutting).toBeGreaterThan(0);
+  });
+
+  it('bounds offline catch-up work and continues draining on following ticks', () => {
+    const started = reduceStartAction(mergeSeed(makeConfig()), 'mining', 'copper_vein', 'gathering', 1000);
+    const farFuture = started.activeAction!.startTime + 86_400_000;
+    const first = tick(started, farFuture);
+    expect(first.activeAction?.repetitionsRemaining).toBe(1000 - MAX_OFFLINE_CATCHUP_PER_TICK);
+    const second = tick(first, farFuture);
+    expect(second.activeAction).toBeNull();
   });
 });
 
@@ -552,6 +579,53 @@ describe('v0.5 economy and marketplace', () => {
     expect(listed.marketplace.heroLocked).toBe(true);
     expect(listed.activeAction).toBeNull();
     expect(listed.marketplace.listings[0].snapshot.nextBattleAt).toBe(1_800_000_000_000);
+  });
+});
+
+describe('v0.6 summoning', () => {
+  const funded = (bhc = 5): GameState => {
+    const base = mergeSeed(makeConfig());
+    return { ...base, investment: { ...base.investment, bhc } };
+  };
+
+  it('uses the published rarity thresholds and pity guarantees', () => {
+    expect(summonRarityForRoll(0.1, 0, 0)).toBe('common');
+    expect(summonRarityForRoll(0.6, 0, 0)).toBe('uncommon');
+    expect(summonRarityForRoll(0.9, 0, 0)).toBe('rare');
+    expect(summonRarityForRoll(0.97, 0, 0)).toBe('epic');
+    expect(summonRarityForRoll(0.995, 0, 0)).toBe('legendary');
+    expect(summonRarityForRoll(0.1, 9, 9)).toBe('rare');
+    expect(summonRarityForRoll(0.1, 49, 49)).toBe('epic');
+    expect(summonRarityForRoll(0.1, 99, 99)).toBe('legendary');
+  });
+
+  it('settles one summon as 50% burn, 40% reward pool, and 10% treasury', () => {
+    const summoned = reduceSummonHero(funded(5), 0.9, 'summon-settlement');
+    expect(summoned.investment.bhc).toBe(5 - SUMMON_COST);
+    expect(summoned.investment.burnedTotal).toBe(SUMMON_BURN);
+    expect(summoned.summoning.rewardPool).toBe(SUMMON_REWARD_POOL);
+    expect(summoned.summoning.treasury).toBe(SUMMON_TREASURY);
+    expect(summoned.summoning.heroes).toHaveLength(1);
+  });
+
+  it('makes retries idempotent and converts duplicate archetypes to essence', () => {
+    const first = reduceSummonHero(funded(), 0.9, 'summon-one');
+    expect(reduceSummonHero(first, 0.9, 'summon-one')).toBe(first);
+    const duplicate = reduceSummonHero(first, 0.9, 'summon-two');
+    expect(duplicate.summoning.heroes).toHaveLength(1);
+    expect(duplicate.summoning.heroes[0].copies).toBe(2);
+    expect(duplicate.summoning.essence).toBeGreaterThan(0);
+  });
+
+  it('pays one battle per Hero every 24h from the finite reward pool', () => {
+    const summoned = reduceSummonHero(funded(), 0.9, 'summon-battle');
+    const hero = summoned.summoning.heroes[0];
+    const now = 1_800_000_000_000;
+    const battled = reduceSummonedHeroBattle(summoned, hero.id, now);
+    expect(battled.investment.bhc).toBeGreaterThan(summoned.investment.bhc);
+    expect(battled.summoning.rewardPool).toBeLessThan(summoned.summoning.rewardPool);
+    expect(battled.summoning.heroes[0].nextBattleAt).toBe(now + 86_400_000);
+    expect(reduceSummonedHeroBattle(battled, hero.id, now)).toBe(battled);
   });
 });
 

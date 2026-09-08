@@ -26,6 +26,7 @@ import { ActivitiesSection } from '@/components/activity/ActivitiesSection';
 import { ShopSection } from '@/components/ShopSection';
 import { DungeonsSection } from '@/components/DungeonsSection';
 import { MarketplaceSection } from '@/components/MarketplaceSection';
+import { SummoningSection } from '@/components/SummoningSection';
 import { getPlayerClass } from '@/lib/classes';
 import { assetPath } from '@/lib/asset-path';
 import { APP_VERSION_LABEL } from '@/lib/version';
@@ -849,6 +850,7 @@ export function SectionContent({ section }: { section: SectionId }) {
     case 'adventure': return <AdventureSection />;
     case 'activities': return <ActivitiesSection />;
     case 'crafting': return <ForgeInvestmentSection />;
+    case 'summoning': return <SummoningSection />;
     case 'tasks': return <TasksSection />;
     case 'collections': return <CollectionsSection />;
     case 'achievements': return <AchievementsSection />;

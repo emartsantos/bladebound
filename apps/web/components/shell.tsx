@@ -17,7 +17,7 @@ import {
   LuScrollText, LuClipboardList, LuBookMarked, LuTrophy, LuShoppingBag, LuSettings,
   LuBell, LuChevronLeft, LuMenu, LuX, LuCoins, LuHeart, LuCrown, LuChevronDown,
   LuLogOut, LuGauge, LuCompass, LuFlameKindling,
-  LuHistory, LuStore,
+  LuHistory, LuStore, LuSparkles,
 } from 'react-icons/lu';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Dropdown } from '@/components/ui/dropdown';
@@ -46,6 +46,7 @@ const NAV_ICONS: Record<SectionId, IconType> = {
   inventory: LuBackpack,
   equipment: LuSword,
   crafting: LuHammer,
+  summoning: LuSparkles,
   dungeons: LuFlame,
   quests: LuScrollText,
   tasks: LuClipboardList,
@@ -65,6 +66,7 @@ const NAV_ENTRIES: Record<SectionId, NavEntry> = {
   inventory: { id: 'inventory', icon: LuBackpack, description: 'Items and materials' },
   equipment: { id: 'equipment', icon: LuSword, description: 'Character loadout' },
   crafting: { id: 'crafting', icon: LuHammer, description: 'Production and recipes' },
+  summoning: { id: 'summoning', icon: LuSparkles, description: 'Summon and command collectible Heroes' },
   dungeons: { id: 'dungeons', icon: LuFlame, description: 'Dungeon runs' },
   quests: { id: 'quests', icon: LuScrollText, description: 'Quest journal' },
   tasks: { id: 'tasks', icon: LuClipboardList, description: 'Daily and weekly objectives' },

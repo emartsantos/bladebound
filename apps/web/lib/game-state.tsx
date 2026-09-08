@@ -56,6 +56,8 @@ export interface GameContextValue {
   rerollWeapon: () => void;
   rebirthHero: () => void;
   reforgeHero: () => void;
+  summonHero: () => void;
+  runSummonedHeroBattle: (heroId: string) => void;
   buyShopItem: (shopItemId: string) => void;
   sellItem: (itemId: string) => void;
   createMarketplaceListing: (assetType: MarketplaceAssetType, assetId: string, price: number) => void;
@@ -199,6 +201,8 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
   const rerollWeapon = useCallback(() => run((c) => c.rerollWeapon()), [run]);
   const rebirthHero = useCallback(() => run((c) => c.rebirthHero()), [run]);
   const reforgeHero = useCallback(() => run((c) => c.reforgeHero()), [run]);
+  const summonHero = useCallback(() => run((c) => c.summonHero()), [run]);
+  const runSummonedHeroBattle = useCallback((heroId: string) => run((c) => c.runSummonedHeroBattle(heroId)), [run]);
 
   const buyShopItem = useCallback((shopItemId: string) => run((c) => c.buyShopItem(shopItemId)), [run]);
   const sellItem = useCallback((itemId: string) => run((c) => c.sellItem(itemId)), [run]);
@@ -248,6 +252,8 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
         rerollWeapon,
         rebirthHero,
         reforgeHero,
+        summonHero,
+        runSummonedHeroBattle,
         buyShopItem,
         sellItem,
         createMarketplaceListing,
