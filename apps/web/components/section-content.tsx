@@ -14,7 +14,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { usePlayer } from '@/lib/use-player';
 import { useGame } from '@/lib/game-state';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
-import { xpStepForLevel } from '@/lib/game/service';
+import { xpStepForLevel, FORGE_COSTS, AWAKENING_COSTS, REBIRTH_COSTS, REBIRTH_LEVELS, heroReforgeCost, weaponRerollCost } from '@/lib/game/service';
 import { itemBucket, itemHeal, itemName } from '@/lib/item-names';
 import { SKILL_ORDER, skillLabel } from '@/lib/skills-meta';
 import { SkillIcon, ITEM_KIND_ICONS, EQUIPMENT_SLOT_ICONS } from '@/components/game/icons';
@@ -97,6 +97,7 @@ function CharacterSection() {
           <div className="flex items-center gap-1.5 rounded-sm border border-iron/70 bg-charcoal px-2.5 py-1.5">
             <LuCoins className="h-3.5 w-3.5 text-bronze" />
             <span className="text-xs font-semibold text-bronze tabular-nums">{state.gold.toLocaleString()}</span>
+            <span className="ml-2 border-l border-iron pl-2 font-mono text-xs text-emberLight">{state.investment.bhc.toFixed(3)} BHC</span>
           </div>
         }
       />
@@ -448,6 +449,45 @@ function EquipmentSection() {
       </div>
     </div>
   );
+}
+
+function ForgeInvestmentSection() {
+  const { state, stats, forgeWeapon, awakenWeapon, rerollWeapon, rebirthHero, reforgeHero } = useGame();
+  const weapon = state.equipment.weapon;
+  const forge = Number(weapon?.metadata?.forgeLevel ?? 0);
+  const awakening = Number(weapon?.metadata?.awakening ?? 0);
+  const rerolls = Number(weapon?.metadata?.rerolls ?? 0);
+  const nextForgeCost = forge < 10 ? FORGE_COSTS[forge] : null;
+  const nextAwakenCost = awakening < 5 ? AWAKENING_COSTS[awakening] : null;
+  const nextRebirthCost = state.investment.heroRebirth < 5 ? REBIRTH_COSTS[state.investment.heroRebirth] : null;
+  const nextRebirthLevel = state.investment.heroRebirth < 5 ? REBIRTH_LEVELS[state.investment.heroRebirth] : null;
+  const nextRerollCost = weaponRerollCost(state);
+  const nextHeroReforgeCost = heroReforgeCost(state);
+  const afford = (cost: number | null) => cost !== null && state.investment.bhc + 0.000001 >= cost;
+
+  return <div className="max-w-4xl space-y-4">
+    <SectionHeader title="Forge & Invest" eyebrow="The Ember Smithy" actions={<div className="rounded-sm border border-ember/40 bg-ember/10 px-3 py-1.5 font-mono text-xs text-emberLight">{state.investment.bhc.toFixed(3)} BHC</div>} />
+    <Panel bodyClassName="p-4"><div className="grid gap-3 sm:grid-cols-3"><StatRow label="Total burned" value={`${state.investment.burnedTotal.toFixed(3)} BHC`} /><StatRow label="Combat power" value={Math.round(stats.strength + stats.armor + stats.maxHealth / 10)} /><StatRow label="Investments" value={state.investment.history.length} /></div><p className="mt-3 text-[11px] text-mist">Normal battles never charge BHC. Every investment below permanently burns its displayed cost.</p></Panel>
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Panel header={<><LuSwords className="h-4 w-4 text-bronze" /><PanelLabel>Weapon investment</PanelLabel></>}>
+        {weapon ? <div className="space-y-4">
+          <div><div className="text-sm font-semibold text-bone">{ITEM_BY_ID[weapon.itemId]?.name ?? weapon.itemId}</div><div className="text-[10px] text-stone">Forge +{forge}/10 · Awakening {awakening}/5 · {rerolls} rerolls</div></div>
+          <div className="space-y-2">
+            <div className="rounded-sm border border-iron bg-charcoal/60 p-3"><div className="flex items-center justify-between"><div><div className="text-xs font-semibold text-bone">Premium Forge +{Math.min(10, forge + 1)}</div><div className="text-[10px] text-mist">+4% weapon stats per level</div></div><GameButton variant="primary" disabled={!afford(nextForgeCost)} onClick={forgeWeapon}>{nextForgeCost === null ? 'Maxed' : `Burn ${nextForgeCost} BHC`}</GameButton></div></div>
+            <div className="rounded-sm border border-iron bg-charcoal/60 p-3"><div className="flex items-center justify-between"><div><div className="text-xs font-semibold text-bone">Awakening tier {Math.min(5, awakening + 1)}</div><div className="text-[10px] text-mist">Requires Forge +{Math.min(10, (awakening + 1) * 2)} · +8% weapon stats</div></div><GameButton variant="secondary" disabled={!afford(nextAwakenCost) || forge < (awakening + 1) * 2} onClick={awakenWeapon}>{nextAwakenCost === null ? 'Maxed' : `Burn ${nextAwakenCost} BHC`}</GameButton></div></div>
+            <div className="rounded-sm border border-iron bg-charcoal/60 p-3"><div className="flex items-center justify-between"><div><div className="text-xs font-semibold text-bone">Reroll weapon affix</div><div className="text-[10px] text-mist">Rarity-scaled cost · replaces the bonus stat</div></div><GameButton variant="secondary" disabled={!afford(nextRerollCost)} onClick={rerollWeapon}>{nextRerollCost === null ? 'Unavailable' : `Burn ${nextRerollCost} BHC`}</GameButton></div></div>
+          </div>
+        </div> : <EmptyState icon={<LuSwords className="h-7 w-7" />} title="No weapon equipped" hint="Equip a weapon before investing in it." />}
+      </Panel>
+      <Panel header={<><LuSparkles className="h-4 w-4 text-bronze" /><PanelLabel>Hero investment</PanelLabel></>}>
+        <div className="space-y-3">
+          <div className="rounded-sm border border-iron bg-charcoal/60 p-3"><div className="flex items-center justify-between gap-3"><div><div className="text-xs font-semibold text-bone">Rebirth {state.investment.heroRebirth}/5</div><div className="text-[10px] text-mist">Permanent +5% base stats per tier · next requires level {nextRebirthLevel ?? '—'}</div></div><GameButton variant="primary" disabled={!afford(nextRebirthCost) || (nextRebirthLevel !== null && state.combatLevel < nextRebirthLevel)} onClick={rebirthHero}>{nextRebirthCost === null ? 'Maxed' : `Burn ${nextRebirthCost} BHC`}</GameButton></div></div>
+          <div className="rounded-sm border border-iron bg-charcoal/60 p-3"><div className="flex items-center justify-between gap-3"><div><div className="text-xs font-semibold text-bone">Hero reforge</div><div className="text-[10px] text-mist">Current: {state.investment.heroBonusStat ? `+${state.investment.heroBonusValue} ${state.investment.heroBonusStat}` : 'No bonus'} · {state.investment.heroReforge} reforges</div></div><GameButton variant="secondary" disabled={!afford(nextHeroReforgeCost)} onClick={reforgeHero}>Burn {nextHeroReforgeCost} BHC</GameButton></div></div>
+        </div>
+      </Panel>
+    </div>
+    <Panel header={<><LuHistory className="h-4 w-4 text-bronze" /><PanelLabel>Investment history</PanelLabel></>}><div className="space-y-2">{state.investment.history.slice(0, 12).map((entry) => <div key={entry.id} className="flex items-center justify-between border-b border-iron/50 pb-2 text-[11px]"><span className="text-mist">{entry.label}</span><span className="font-mono text-emberLight">-{entry.cost} BHC</span></div>)}{state.investment.history.length === 0 && <p className="text-[11px] text-stone">No investments yet. Win rewarded battles to earn BHC.</p>}</div></Panel>
+  </div>;
 }
 
 // ── SECTION: QUESTS ─────────────────────────────────────────────
@@ -807,7 +847,7 @@ export function SectionContent({ section }: { section: SectionId }) {
     case 'equipment': return <EquipmentSection />;
     case 'adventure': return <AdventureSection />;
     case 'activities': return <ActivitiesSection />;
-    case 'crafting': return <PlaceholderSection id={section} />;
+    case 'crafting': return <ForgeInvestmentSection />;
     case 'tasks': return <TasksSection />;
     case 'collections': return <CollectionsSection />;
     case 'achievements': return <AchievementsSection />;

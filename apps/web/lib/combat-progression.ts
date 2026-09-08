@@ -2,6 +2,7 @@ import type { BaseStats, EquipmentSlots, StatBlock } from '@premium-rpg/shared-t
 import { ITEM_BY_ID } from '@premium-rpg/game-data';
 import { baseStatsForLevel } from '@/lib/player-summary';
 import { getPlayerClass } from '@/lib/classes';
+import type { InvestmentState } from '@/lib/persistence/game-persistence';
 
 export const COMBAT_LEVEL_CAP = 100;
 
@@ -25,20 +26,28 @@ export function equipmentStats(equipment: EquipmentSlots): Partial<StatBlock> {
   for (const equipped of Object.values(equipment)) {
     if (!equipped || (equipped.durability ?? 100) <= 0) continue;
     const definition = ITEM_BY_ID[equipped.itemId];
+    const forgeLevel = Number(equipped.metadata?.forgeLevel ?? 0);
+    const awakening = Number(equipped.metadata?.awakening ?? 0);
+    const multiplier = definition?.equipmentSlot === 'weapon' ? 1 + forgeLevel * 0.04 + awakening * 0.08 : 1;
     for (const [key, value] of Object.entries(definition?.stats ?? {})) {
       const stat = key as keyof StatBlock;
-      totals[stat] = ((totals[stat] ?? 0) + (value ?? 0)) as never;
+      totals[stat] = ((totals[stat] ?? 0) + (value ?? 0) * multiplier) as never;
     }
+    const bonusStat = equipped.metadata?.bonusStat as keyof StatBlock | undefined;
+    const bonusValue = Number(equipped.metadata?.bonusValue ?? 0);
+    if (bonusStat && bonusValue > 0) totals[bonusStat] = ((totals[bonusStat] ?? 0) + bonusValue) as never;
   }
   return totals;
 }
 
-export function derivedCombatStats(level: number, classId: string, equipment: EquipmentSlots): BaseStats {
+export function derivedCombatStats(level: number, classId: string, equipment: EquipmentSlots, investment?: InvestmentState): BaseStats {
   const base = classBaseStats(level, classId);
   const gear = equipmentStats(equipment);
   const result = { ...base } as BaseStats;
+  const rebirthMultiplier = 1 + (investment?.heroRebirth ?? 0) * 0.05;
   for (const key of Object.keys(base) as Array<keyof BaseStats>) {
-    result[key] = Math.round((base[key] + (gear[key] ?? 0)) * 100) / 100;
+    const reforge = investment?.heroBonusStat === key ? investment.heroBonusValue : 0;
+    result[key] = Math.round((base[key] * rebirthMultiplier + (gear[key] ?? 0) + reforge) * 100) / 100;
   }
   return result;
 }

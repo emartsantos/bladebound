@@ -34,6 +34,11 @@ import {
   reduceDungeonFight,
   reduceAbandonDungeon,
   reduceClearDungeon,
+  reduceForgeWeapon,
+  reduceAwakenWeapon,
+  reduceRerollWeapon,
+  reduceRebirthHero,
+  reduceReforgeHero,
 } from './service';
 
 /**
@@ -96,6 +101,7 @@ export class LocalGameClient implements GameClient {
     };
     add('gold', 'gold', next.gold - previous.gold, next.gold);
     add('combat_xp', 'combat_xp', next.combatXp - previous.combatXp, next.combatXp);
+    add('bhc', 'bhc', next.investment.bhc - previous.investment.bhc, next.investment.bhc);
     for (const skill of Object.keys(next.skills) as SkillId[]) add('skill_xp', skill, next.skills[skill] - previous.skills[skill], next.skills[skill]);
     const itemIds = new Set([...Object.keys(previous.inventory), ...Object.keys(next.inventory)]);
     for (const itemId of itemIds) add('item', itemId, (next.inventory[itemId] ?? 0) - (previous.inventory[itemId] ?? 0), next.inventory[itemId] ?? 0);
@@ -193,6 +199,12 @@ export class LocalGameClient implements GameClient {
   unequipItem(slot: EquipmentSlot): void {
     this.setState(reduceUnequipItem(this.state, slot));
   }
+
+  forgeWeapon(): void { this.setState(reduceForgeWeapon(this.state), 'weapon_forge'); }
+  awakenWeapon(): void { this.setState(reduceAwakenWeapon(this.state), 'weapon_awaken'); }
+  rerollWeapon(): void { this.setState(reduceRerollWeapon(this.state), 'weapon_reroll'); }
+  rebirthHero(): void { this.setState(reduceRebirthHero(this.state), 'hero_rebirth'); }
+  reforgeHero(): void { this.setState(reduceReforgeHero(this.state), 'hero_reforge'); }
 
   // ---- economy (shop) ----
 

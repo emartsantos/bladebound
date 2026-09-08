@@ -29,6 +29,12 @@ import {
   reduceClaimTask,
   reduceClaimMail,
   reduceRerollTask,
+  reduceForgeWeapon,
+  reduceAwakenWeapon,
+  reduceRerollWeapon,
+  reduceRebirthHero,
+  reduceReforgeHero,
+  battleBhcReward,
 } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { getCurrentTasks, levelForXp } from '@premium-rpg/game-engine';
@@ -417,6 +423,74 @@ describe('equipment', () => {
     const result = reduceEquipItem(withSword, 'helmet', 'iron_sword');
     expect(result.equipment.helmet).toBeNull();
     expect(result.inventory.iron_sword).toBe(1);
+  });
+});
+
+describe('v0.4 forging and investment', () => {
+  function armedState(bhc = 20): GameState {
+    const base = mergeSeed(makeConfig());
+    const equipped = reduceEquipItem({ ...base, inventory: { ...base.inventory, iron_sword: 1 } }, 'weapon', 'iron_sword');
+    return { ...equipped, investment: { ...equipped.investment, bhc } };
+  }
+
+  it('burns the exact forge cost and records the upgrade once', () => {
+    const forged = reduceForgeWeapon(armedState(1));
+    expect(forged.equipment.weapon?.metadata?.forgeLevel).toBe(1);
+    expect(forged.investment.bhc).toBe(0.75);
+    expect(forged.investment.burnedTotal).toBe(0.25);
+    expect(forged.investment.history[0]?.type).toBe('forge');
+  });
+
+  it('does not mutate the weapon when the BHC balance is insufficient', () => {
+    const base = armedState(0.24);
+    expect(reduceForgeWeapon(base)).toBe(base);
+  });
+
+  it('requires forge +2 before the first awakening', () => {
+    const base = armedState();
+    expect(reduceAwakenWeapon(base)).toBe(base);
+    const ready: GameState = {
+      ...base,
+      equipment: { ...base.equipment, weapon: { ...base.equipment.weapon!, metadata: { forgeLevel: 2 } } },
+    };
+    const awakened = reduceAwakenWeapon(ready);
+    expect(awakened.equipment.weapon?.metadata?.awakening).toBe(1);
+    expect(awakened.investment.bhc).toBe(19);
+  });
+
+  it('rerolls a weapon affix and records a rarity-priced burn', () => {
+    const rerolled = reduceRerollWeapon(armedState(2));
+    expect(rerolled.equipment.weapon?.metadata?.rerolls).toBe(1);
+    expect(rerolled.equipment.weapon?.metadata?.bonusStat).toBe('agility');
+    expect(rerolled.investment.history[0]?.type).toBe('weapon_reroll');
+    expect(rerolled.investment.bhc).toBeLessThan(2);
+  });
+
+  it('enforces rebirth level gates and scales hero reforges', () => {
+    const base = armedState(20);
+    expect(reduceRebirthHero(base)).toBe(base);
+    const eligible = { ...base, combatLevel: 20 };
+    const reborn = reduceRebirthHero(eligible);
+    expect(reborn.investment.heroRebirth).toBe(1);
+    expect(reborn.investment.bhc).toBe(18);
+    const reforged = reduceReforgeHero(reborn);
+    expect(reforged.investment.heroBonusValue).toBe(5);
+    expect(reforged.investment.heroBonusStat).toBe('agility');
+  });
+
+  it('scales rewarded-battle BHC and caps it at 0.5', () => {
+    const common = ALL_ENEMIES.find((enemy) => enemy.category === 'normal') ?? ALL_ENEMIES[0];
+    const boss = ALL_ENEMIES.find((enemy) => enemy.category === 'boss');
+    expect(battleBhcReward(armedState(), common)).toBeGreaterThanOrEqual(0.08);
+    if (boss) {
+      const maxed = armedState();
+      const boosted: GameState = {
+        ...maxed,
+        combatLevel: 1000,
+        equipment: { ...maxed.equipment, weapon: { ...maxed.equipment.weapon!, metadata: { forgeLevel: 50, awakening: 20 } } },
+      };
+      expect(battleBhcReward(boosted, boss)).toBe(0.5);
+    }
   });
 });
 

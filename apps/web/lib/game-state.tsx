@@ -50,6 +50,11 @@ export interface GameContextValue {
   resetProgress: () => void;
   equipItem: (slot: EquipmentSlot, itemId: string) => void;
   unequipItem: (slot: EquipmentSlot) => void;
+  forgeWeapon: () => void;
+  awakenWeapon: () => void;
+  rerollWeapon: () => void;
+  rebirthHero: () => void;
+  reforgeHero: () => void;
   buyShopItem: (shopItemId: string) => void;
   sellItem: (itemId: string) => void;
   startDungeon: (dungeonId: string) => void;
@@ -125,7 +130,7 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
     if (client) op(client);
   }, []);
 
-  const stats = derivedCombatStats(state.combatLevel, state.characterClass, state.equipment);
+  const stats = derivedCombatStats(state.combatLevel, state.characterClass, state.equipment, state.investment);
   const maxHealth = stats.maxHealth;
 
   const skillView = useCallback(
@@ -181,6 +186,11 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
   const repairAll = useCallback(() => run((c) => c.repairAll()), [run]);
   const equipItem = useCallback((slot: EquipmentSlot, itemId: string) => run((c) => c.equipItem(slot, itemId)), [run]);
   const unequipItem = useCallback((slot: EquipmentSlot) => run((c) => c.unequipItem(slot)), [run]);
+  const forgeWeapon = useCallback(() => run((c) => c.forgeWeapon()), [run]);
+  const awakenWeapon = useCallback(() => run((c) => c.awakenWeapon()), [run]);
+  const rerollWeapon = useCallback(() => run((c) => c.rerollWeapon()), [run]);
+  const rebirthHero = useCallback(() => run((c) => c.rebirthHero()), [run]);
+  const reforgeHero = useCallback(() => run((c) => c.reforgeHero()), [run]);
 
   const buyShopItem = useCallback((shopItemId: string) => run((c) => c.buyShopItem(shopItemId)), [run]);
   const sellItem = useCallback((itemId: string) => run((c) => c.sellItem(itemId)), [run]);
@@ -222,6 +232,11 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
         resetProgress,
         equipItem,
         unequipItem,
+        forgeWeapon,
+        awakenWeapon,
+        rerollWeapon,
+        rebirthHero,
+        reforgeHero,
         buyShopItem,
         sellItem,
         startDungeon,

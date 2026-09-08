@@ -1,7 +1,7 @@
 import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, PlayerTaskState, PlayerQuestState, PlayerAchievementState, PlayerCollectionState, BestiaryState } from '@premium-rpg/shared-types';
 import type { ActiveAction, QueuedAction } from '@/lib/game/service';
 
-export const GAME_SAVE_SCHEMA_VERSION = 4;
+export const GAME_SAVE_SCHEMA_VERSION = 5;
 
 export interface RetentionMail {
   id: string;
@@ -34,6 +34,7 @@ export interface BattleHistoryEntry {
   result: 'victory' | 'defeat';
   xp: number;
   gold: number;
+  bhc?: number;
   loot: Array<{ itemId: string; quantity: number }>;
 }
 
@@ -47,11 +48,29 @@ export interface DailyBattleState {
 export interface EconomyTransaction {
   id: string;
   createdAt: number;
-  category: 'gold' | 'item' | 'skill_xp' | 'combat_xp';
+  category: 'gold' | 'item' | 'skill_xp' | 'combat_xp' | 'bhc';
   assetId: string;
   delta: number;
   balance: number;
   reason: string;
+}
+
+export interface InvestmentRecord {
+  id: string;
+  type: 'forge' | 'awaken' | 'weapon_reroll' | 'hero_rebirth' | 'hero_reforge';
+  label: string;
+  cost: number;
+  createdAt: number;
+}
+
+export interface InvestmentState {
+  bhc: number;
+  burnedTotal: number;
+  heroRebirth: number;
+  heroReforge: number;
+  heroBonusStat: 'strength' | 'agility' | 'intelligence' | 'vitality' | null;
+  heroBonusValue: number;
+  history: InvestmentRecord[];
 }
 
 /**
@@ -91,6 +110,7 @@ export interface GameSaveData {
   collection?: PlayerCollectionState;
   bestiary?: BestiaryState;
   retention?: RetentionState;
+  investment?: InvestmentState;
 }
 
 /** Upgrade older browser/cloud saves without discarding valid zero balances. */
