@@ -16,6 +16,8 @@ import {
   reduceClearActionQueue,
   reduceClearActionLog,
   reduceClaimTask,
+  reduceRerollTask,
+  reduceClaimMail,
   reduceSetSelectedSkill,
   reduceSetCombatTarget,
   reduceFight,
@@ -138,6 +140,14 @@ export class LocalGameClient implements GameClient {
 
   claimTask(taskId: string): void {
     this.setState(reduceClaimTask(this.state, taskId), 'task_reward');
+  }
+
+  rerollTask(group: 'daily' | 'weekly', index: number): void {
+    this.setState(reduceRerollTask(this.state, group, index), 'task_reroll');
+  }
+
+  claimMail(mailId: string): void {
+    this.setState(reduceClaimMail(this.state, mailId), 'mail_reward');
   }
 
   setSelectedSkill(skill: SkillId): void {

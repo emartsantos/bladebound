@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { SectionId } from '@premium-rpg/ui-tokens';
 import { RARITY_TREATMENTS } from '@premium-rpg/ui-tokens';
-import { LuClock, LuLock, LuMap, LuCompass, LuSparkles, LuHammer, LuFlame, LuClipboardList, LuBookMarked, LuTrophy, LuShoppingBag, LuSearch, LuCoins, LuSwords, LuSlidersHorizontal, LuScrollText, LuBackpack, LuX, LuCircleCheck, LuHistory } from 'react-icons/lu';
+import { LuClock, LuLock, LuMap, LuCompass, LuSparkles, LuHammer, LuFlame, LuClipboardList, LuBookMarked, LuTrophy, LuShoppingBag, LuSearch, LuCoins, LuSwords, LuSlidersHorizontal, LuScrollText, LuBackpack, LuX, LuCircleCheck, LuHistory, LuMail, LuCalendarDays, LuRefreshCw } from 'react-icons/lu';
 import type { IconType } from 'react-icons';
 import type { QuestDefinition, PlayerSummary, EquipmentSlot, TaskAssignment } from '@premium-rpg/shared-types';
 import type { Region } from '@premium-rpg/game-data';
-import { ITEM_BY_ID, QUESTS, ALL_REGIONS, ALL_ENEMIES, TASK_BY_ID } from '@premium-rpg/game-data';
+import { ITEM_BY_ID, QUESTS, ALL_REGIONS, ALL_ENEMIES, TASK_BY_ID, ACHIEVEMENTS, COLLECTION_ENTRIES } from '@premium-rpg/game-data';
 import { getCurrentTasks } from '@premium-rpg/game-engine';
 import { Tooltip } from '@/components/ui/tooltip';
 import { usePlayer } from '@/lib/use-player';
@@ -29,6 +29,7 @@ import { getPlayerClass } from '@/lib/classes';
 import { assetPath } from '@/lib/asset-path';
 import { APP_VERSION_LABEL } from '@/lib/version';
 import { equipmentPower } from '@/lib/combat-progression';
+import { enemyArt } from '@/lib/enemy-art';
 import { checkSupabaseReadiness, type SupabaseReadiness } from '@/lib/supabase/config';
 import { useAuth } from '@/context/auth-context';
 
@@ -58,7 +59,7 @@ function CharacterSection() {
   const { state: authState, selectCharacter, createCharacter, archiveCharacter } = useAuth();
   const [newHeroName, setNewHeroName] = useState('');
   const [heroMessage, setHeroMessage] = useState('');
-  const { state, skillView, maxHealth } = useGame();
+  const { state, skillView, maxHealth, claimMail } = useGame();
   const combat = state.combat;
   const hpPct = Math.max(0, Math.min(100, Math.round((combat.playerHp / maxHealth) * 100)));
   const totalLevel = state.combatLevel + SKILL_ORDER.reduce((sum, id) => sum + skillView(id).level, 0);
@@ -124,6 +125,31 @@ function CharacterSection() {
             </div>
           )}
           {heroMessage && <p className="mt-2 text-[10px] text-mist">{heroMessage}</p>}
+        </Panel>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Panel header={<><LuCalendarDays className="h-4 w-4 text-bronze" /><PanelLabel>Login calendar</PanelLabel><span className="ml-auto font-mono text-[10px] text-verdantBright">{state.retention.loginStreak} day streak</span></>}>
+          <div className="grid grid-cols-7 gap-1.5">
+            {Array.from({ length: 7 }, (_, index) => {
+              const date = new Date(Date.now() - (6 - index) * 86_400_000);
+              const key = date.toISOString().slice(0, 10);
+              const active = Boolean(state.retention.loginDays[key]);
+              return <div key={key} className={`rounded-sm border py-2 text-center ${active ? 'border-verdant/50 bg-verdant/10 text-verdantBright' : 'border-iron bg-charcoal text-stone'}`}><div className="text-[9px] uppercase">{date.toLocaleDateString(undefined, { weekday: 'short' })}</div><div className="font-mono text-xs">{date.getDate()}</div></div>;
+            })}
+          </div>
+          <p className="mt-2 text-[10px] text-stone">Longest streak: {state.retention.longestLoginStreak} days · rewards arrive in your mailbox.</p>
+        </Panel>
+        <Panel header={<><LuMail className="h-4 w-4 text-bronze" /><PanelLabel>Mailbox</PanelLabel><span className="ml-auto font-mono text-[10px] text-stone">{state.retention.mailbox.filter((mail) => !mail.claimed).length} unread rewards</span></>}>
+          <div className="max-h-40 space-y-2 overflow-auto">
+            {state.retention.mailbox.slice(0, 6).map((mail) => <div key={mail.id} className="flex items-center gap-2 border-b border-iron/50 pb-2"><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-semibold text-bone">{mail.title}</div><div className="truncate text-[10px] text-stone">{mail.message}</div></div>{!mail.claimed && <GameButton variant="primary" onClick={() => claimMail(mail.id)}>Claim</GameButton>}</div>)}
+            {state.retention.mailbox.length === 0 && <p className="text-[11px] text-stone">No messages yet.</p>}
+          </div>
+        </Panel>
+      </div>
+      {state.retention.offlineReport && state.retention.offlineReport.awayMs >= 60_000 && (
+        <Panel header={<><LuClock className="h-4 w-4 text-bronze" /><PanelLabel>While you were away</PanelLabel></>}>
+          <p className="text-xs text-mist">Away for {Math.floor(state.retention.offlineReport.awayMs / 3_600_000)}h {Math.floor((state.retention.offlineReport.awayMs % 3_600_000) / 60_000)}m. {state.retention.offlineReport.actionLabel ?? 'Your hero rested safely at camp.'}</p>
         </Panel>
       )}
 
@@ -426,15 +452,9 @@ function EquipmentSection() {
 
 // ── SECTION: QUESTS ─────────────────────────────────────────────
 
-function questProgress(q: QuestDefinition): { done: number; total: number } {
-  return {
-    done: 0,
-    total: q.objectives.reduce((sum, o) => sum + o.required, 0),
-  };
-}
-
 function QuestsSection() {
-  const quests = QUESTS.slice(0, 5);
+  const { state } = useGame();
+  const quests = QUESTS.filter((quest) => quest.category === 'main').slice(0, 10);
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -444,26 +464,32 @@ function QuestsSection() {
         <EmptyState icon={<LuScrollText className="h-7 w-7" />} title="No contracts " hint="Adventures will bring new contracts to the frontier." />
       ) : (
         quests.map((q) => {
-          const { done, total } = questProgress(q);
+          const progress = state.quest.active[q.id];
+          const completed = Boolean(state.quest.completed[q.id]);
+          const locked = !completed && !progress;
+          const done = completed ? q.objectives.reduce((sum, o) => sum + o.required, 0) : Object.values(progress?.objectives ?? {}).reduce((sum, objective) => sum + objective.current, 0);
+          const total = q.objectives.reduce((sum, o) => sum + o.required, 0);
           const pct = total > 0 ? Math.round((done / total) * 100) : 0;
           return (
             <div key={q.id} className="panel p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="font-display text-[15px] font-semibold text-bone">{q.name}</h3>
                 <span className="rounded-sm border border-ember/40 bg-ember/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-emberLight">
-                  {q.category}
+                  {completed ? 'completed' : locked ? 'locked' : 'active'}
                 </span>
               </div>
               <p className="mt-1.5 text-xs text-mist">{q.description}</p>
 
               <div className="mt-3 space-y-1.5">
-                {q.objectives.map((o) => (
+                {q.objectives.map((o) => {
+                  const objective = progress?.objectives[o.id];
+                  return (
                   <div key={o.description} className="flex items-center gap-2 text-[11px] text-mist">
-                    <span className="h-1.5 w-1.5 rounded-sm border border-stone/60 bg-transparent" />
+                    <span className={`h-1.5 w-1.5 rounded-sm border ${completed || objective?.completed ? 'border-verdant bg-verdant' : 'border-stone/60 bg-transparent'}`} />
                     <span className="flex-1">{o.description}</span>
-                    <span className="font-mono text-stone">{0}/{o.required}</span>
+                    <span className="font-mono text-stone">{completed ? o.required : objective?.current ?? 0}/{o.required}</span>
                   </div>
-                ))}
+                )})}
               </div>
 
               <div className="divider-row mt-3 pt-2.5">
@@ -552,10 +578,10 @@ function WorldSection() {
 // ── GENERIC / PLACEHOLDER SECTIONS ──────────────────────────────
 
 function TasksSection() {
-  const { state, claimTask: claimTaskReward } = useGame();
+  const { state, claimTask: claimTaskReward, rerollTask } = useGame();
   const current = getCurrentTasks(state.task, new Date());
 
-  const group = (title: string, assignments: TaskAssignment[]) => (
+  const group = (title: string, kind: 'daily' | 'weekly', assignments: TaskAssignment[]) => (
     <section className="space-y-2">
       <div className="flex items-center justify-between">
         <h2 className="section-label">{title}</h2>
@@ -563,7 +589,7 @@ function TasksSection() {
           {assignments.filter((a) => a.completed).length}/{assignments.length} complete
         </span>
       </div>
-      {assignments.map((assignment) => {
+      {assignments.map((assignment, index) => {
         const definition = TASK_BY_ID[assignment.taskId];
         const pct = Math.min(100, Math.round((assignment.current / assignment.required) * 100));
         return (
@@ -587,6 +613,9 @@ function TasksSection() {
                     <GameButton variant="primary" onClick={() => claimTaskReward(assignment.taskId)}>Claim reward</GameButton>
                   )}
                   {assignment.claimed && <span className="text-[10px] uppercase tracking-wider text-verdantBright">Claimed</span>}
+                  {!assignment.completed && assignment.current === 0 && (
+                    <GameButton variant="ghost" onClick={() => rerollTask(kind, index)}><LuRefreshCw className="h-3 w-3" /> Reroll</GameButton>
+                  )}
                 </div>
               </div>
             </div>
@@ -599,10 +628,40 @@ function TasksSection() {
   return (
     <div className="max-w-3xl space-y-5">
       <SectionHeader title="Tasks" eyebrow="Daily & Weekly" />
-      {group('Daily quests', current.daily)}
-      {group('Weekly contracts', current.weekly)}
+      {group('Daily quests', 'daily', current.daily)}
+      {group('Weekly contracts', 'weekly', current.weekly)}
     </div>
   );
+}
+
+function CollectionsSection() {
+  const { state } = useGame();
+  const collected = Object.values(state.collection.entries).filter((entry) => entry.collected).length;
+  return <div className="max-w-4xl space-y-4">
+    <SectionHeader title="Collections" eyebrow="Bestiary & Codex" actions={<span className="font-mono text-xs text-bronzeLight">{collected}/{COLLECTION_ENTRIES.length} collected</span>} />
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {ALL_ENEMIES.slice(0, 24).map((enemy) => {
+        const entry = state.bestiary.entries[enemy.id];
+        const rep = state.retention.regionReputation[enemy.regionId] ?? 0;
+        return <Panel key={enemy.id} bodyClassName="p-3"><div className="flex items-center gap-3"><div className="art-frame h-11 w-11 shrink-0">{entry?.discovered && enemyArt(enemy.id) ? <img src={enemyArt(enemy.id) ?? ''} alt="" className="h-9 w-9 object-contain" /> : <span className="text-lg text-stone">?</span>}</div><div className="min-w-0"><div className="truncate text-xs font-semibold text-bone">{entry?.discovered ? enemy.name : 'Undiscovered'}</div><div className="text-[10px] text-stone">Kills {entry?.killCount ?? 0} · Rep {rep}</div><div className="text-[9px] uppercase tracking-wider text-bronze">{entry?.completed ? 'Codex complete' : entry?.defeated ? `${entry.dropsDiscovered.length} drops found` : 'Not defeated'}</div></div></div></Panel>;
+      })}
+    </div>
+  </div>;
+}
+
+function AchievementsSection() {
+  const { state } = useGame();
+  return <div className="max-w-4xl space-y-4">
+    <SectionHeader title="Achievements" eyebrow="Legacy" actions={<span className="font-mono text-xs text-bronzeLight">{state.achievement.totalPoints} points · {state.achievement.totalCompleted}/{ACHIEVEMENTS.length}</span>} />
+    <div className="grid gap-3 md:grid-cols-2">
+      {ACHIEVEMENTS.map((achievement) => {
+        const progress = state.achievement.progress[achievement.id];
+        const hidden = achievement.hidden && !progress?.completed;
+        const pct = Math.round((progress?.current ?? 0) * 100);
+        return <Panel key={achievement.id} bodyClassName="p-4"><div className="flex items-start gap-3"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border ${progress?.completed ? 'border-verdant/50 bg-verdant/10 text-verdantBright' : 'border-iron bg-charcoal text-bronze'}`}><LuTrophy className="h-4 w-4" /></span><div className="min-w-0 flex-1"><div className="flex justify-between gap-2"><h3 className="text-xs font-semibold text-bone">{hidden ? 'Hidden achievement' : achievement.name}</h3><span className="font-mono text-[10px] text-bronze">+{achievement.reward.points}</span></div><p className="mt-0.5 text-[10px] text-mist">{hidden ? 'Continue exploring to reveal this honour.' : achievement.description}</p><Bar variant={progress?.completed ? 'resource' : 'xp'} pct={pct} height={4} className="mt-2" /></div></div></Panel>;
+      })}
+    </div>
+  </div>;
 }
 
 const PLACEHOLDER: Record<string, { icon: IconType; blurb: string; empty: string; hint: string }> = {
@@ -750,9 +809,8 @@ export function SectionContent({ section }: { section: SectionId }) {
     case 'activities': return <ActivitiesSection />;
     case 'crafting': return <PlaceholderSection id={section} />;
     case 'tasks': return <TasksSection />;
-    case 'collections':
-    case 'achievements':
-      return <PlaceholderSection id={section} />;
+    case 'collections': return <CollectionsSection />;
+    case 'achievements': return <AchievementsSection />;
     case 'dungeons': return <DungeonsSection />;
     case 'shop': return <ShopSection />;
     case 'settings': return <SettingsSection />;

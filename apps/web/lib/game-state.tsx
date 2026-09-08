@@ -37,6 +37,8 @@ export interface GameContextValue {
   clearActionQueue: () => void;
   clearActionLog: () => void;
   claimTask: (taskId: string) => void;
+  rerollTask: (group: 'daily' | 'weekly', index: number) => void;
+  claimMail: (mailId: string) => void;
   setSelectedSkill: (skill: SkillId) => void;
   setCombatTarget: (regionId: string, enemyId: string) => void;
   fight: () => void;
@@ -158,6 +160,8 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
   const clearActionQueue = useCallback(() => run((c) => c.clearActionQueue()), [run]);
   const clearActionLog = useCallback(() => run((c) => c.clearActionLog()), [run]);
   const claimTask = useCallback((taskId: string) => run((c) => c.claimTask(taskId)), [run]);
+  const rerollTask = useCallback((group: 'daily' | 'weekly', index: number) => run((c) => c.rerollTask(group, index)), [run]);
+  const claimMail = useCallback((mailId: string) => run((c) => c.claimMail(mailId)), [run]);
   const setSelectedSkill = useCallback((skill: SkillId) => run((c) => c.setSelectedSkill(skill)), [run]);
   const setCombatTarget = useCallback((regionId: string, enemyId: string) => run((c) => c.setCombatTarget(regionId, enemyId)), [run]);
   const fight = useCallback(async () => {
@@ -205,6 +209,8 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
         clearActionQueue,
         clearActionLog,
         claimTask,
+        rerollTask,
+        claimMail,
         setSelectedSkill,
         setCombatTarget,
         fight,
