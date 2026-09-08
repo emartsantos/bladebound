@@ -7,16 +7,11 @@ import type { EnemyDefinition } from '@premium-rpg/shared-types';
 import { useGame } from '@/lib/game-state';
 import { actionsForSkill, skillLabel, forgeRows, type ActionRow } from '@/lib/skills-meta';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
+import { xpStepForLevel } from "@/lib/game/service";
 import { Bar } from '@/components/game/primitives';
 import { ACTIVITY_SCENES, type SceneEvent } from './activity-scenes';
 import { IngredientChip } from './IngredientChip';
 import type { ActivityConfig, ActivityId } from './activity-config';
-
-const BASE_XP = 52;
-const XP_GROWTH = 1.1;
-function xpStepForLevel(level: number): number {
-  return Math.floor(BASE_XP * Math.pow(level, XP_GROWTH));
-}
 
 function sceneAccent(activity: ActivityConfig): string {
   switch (activity.accent) {

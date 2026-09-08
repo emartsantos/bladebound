@@ -12,16 +12,13 @@ import { LuMap, LuLock, LuPause, LuPlay, LuBed, LuDrumstick, LuSkull, LuSwords, 
 import type { IconType } from 'react-icons';
 import { useGame } from '@/lib/game-state';
 import { usePlayer } from '@/lib/use-player';
+import { assetPath } from '@/lib/asset-path';
+import { xpStepForLevel } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { COMBAT_STYLE_ICONS } from '@/components/game/icons';
 import { SectionHeader, Panel, PanelLabel, Bar, BarLabel, GameButton, EmptyState } from '@/components/game/primitives';
 
-// Mirrors the engine XP step used by game-state for the combat XP bar.
-const BASE_XP = 52;
-const XP_GROWTH = 1.1;
-function xpStepForLevel(level: number): number {
-  return Math.floor(BASE_XP * Math.pow(level, XP_GROWTH));
-}
+// Bar-math uses the engine XP step (BASE_XP * level^XP_GROWTH), the single source of truth.
 
 const CATEGORY_LABEL: Record<EnemyCategory, string> = {
   normal: 'Common',
@@ -54,8 +51,8 @@ const DANGER_TEXT: Record<DangerLevel, string> = {
 
 function enemyArt(id: string): string | null {
   const lower = id.toLowerCase();
-  if (lower.includes('goblin')) return '/art/enemy-goblin.svg';
-  if (lower.includes('troll-king') || lower.includes('forest_troll') || lower.includes('forest-troll')) return '/art/boss-forest-troll-king.svg';
+  if (lower.includes('goblin')) return assetPath('/art/enemy-goblin.svg');
+  if (lower.includes('troll-king') || lower.includes('forest_troll') || lower.includes('forest-troll')) return assetPath('/art/boss-forest-troll-king.svg');
   return null;
 }
 

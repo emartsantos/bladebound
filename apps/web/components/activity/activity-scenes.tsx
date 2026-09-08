@@ -11,6 +11,7 @@
 
 import type { CSSProperties, ReactElement } from 'react';
 import type { EnemyDefinition } from '@premium-rpg/shared-types';
+import { ActivityRig, activityStateFor } from '@/components/game/visuals/ActivityRig';
 import type { ActivityId } from './activity-config';
 
 export type SceneEventKind =
@@ -434,27 +435,6 @@ function CavernBackdrop({ uid }: { uid: string }) {
   );
 }
 
-function OreVein() {
-  return (
-    <svg viewBox="0 0 220 220" className="h-full w-full" aria-hidden="true">
-      <g>
-        {/* boulder facets */}
-        <path d="M14 216 L20 84 L96 22 L176 64 L206 172 L190 214 Z" fill={CLR.mid} stroke={CLR.stroke} strokeWidth="2" />
-        <path d="M20 84 L96 22 L116 96 L40 118 Z" fill={CLR.far} stroke={CLR.line} strokeWidth="1.4" />
-        <path d="M96 22 L176 64 L132 118 L116 96 Z" fill="#1a140f" stroke={CLR.line} strokeWidth="1.4" />
-        <path d="M176 64 L206 172 L150 140 L132 118 Z" fill={CLR.far} stroke={CLR.line} strokeWidth="1.4" />
-        {/* ore crystals */}
-        {([
-          [64, 84, 8, 34, CLR.ember], [92, 60, 7, 30, CLR.emberHi], [120, 128, 9, 38, CLR.ember],
-          [150, 96, 6, 26, CLR.bronze], [172, 140, 8, 32, CLR.ember], [104, 156, 6, 26, CLR.emberHi],
-        ] as [number, number, number, number, string][]).map(([cx, cy, w, h, c], i) => (
-          <rect key={i} x={cx - w / 2} y={cy - h / 2} width={w} height={h} rx={2} transform={`rotate(${(i % 2) * 18} ${cx} ${cy})`} fill={c} opacity={0.85} className="flicker" />
-        ))}
-      </g>
-    </svg>
-  );
-}
-
 export function MineScene({ uid, event }: SceneProps) {
   const E = event;
   const impact = E && (E.kind === 'impact' || E.kind === 'rare');
@@ -478,38 +458,26 @@ export function MineScene({ uid, event }: SceneProps) {
           <span className="absolute left-1/2 top-full h-4 w-px -translate-x-1/2 bg-[#2e2a25]" />
         </div>
 
-        <div className="idle-bob absolute bottom-[7%] left-[6%] w-[30vw] max-w-[200px] min-w-[140px]">
-          <svg viewBox="-60 -230 120 240" className="h-full w-full" aria-hidden="true">
-            <path d="M0 -150 C -24 -112 -40 -60 -40 -14 C -40 10 -26 16 0 16 C 26 16 40 10 40 -14 C 40 -60 24 -112 0 -150 Z" fill={CLR.near} stroke={CLR.stroke} strokeWidth="2" />
-            <circle cx="0" cy="-168" r="24" fill={CLR.near} stroke={CLR.line} strokeWidth="2" />
-            <path d="M-23 -168 C -23 -188 2 -192 2 -170" fill="none" stroke={CLR.bone} strokeWidth="1.2" opacity="0.4" />
-            <path d="M-16 -80 L -30 -96" stroke={CLR.line} strokeWidth="4" />
-          </svg>
-          <div className={`pointer-events-none ${impact ? 'pick-swing' : ''}`} style={{ position: 'absolute', left: '46%', top: '18%', width: 96, height: 80 }}>
-            <svg viewBox="0 0 96 80" className="h-full w-full" aria-hidden="true">
-              <path d="M34 20 L 62 66" stroke="#5c4a3a" strokeWidth="6" strokeLinecap="round" />
-              <path d="M22 18 L 54 34 L 44 44 L 12 28 Z" fill="#8d8880" stroke={CLR.line} strokeWidth="1.5" />
-              <path d="M62 66 L 88 52 L 78 44 L 54 56 Z" fill="#7a7467" stroke={CLR.line} strokeWidth="1.5" />
-              <path d="M40 24 L 50 31" stroke={CLR.bone} strokeWidth="1.4" opacity="0.55" />
-            </svg>
-          </div>
-        </div>
-
-        <div className={`absolute bottom-[8%] right-[6%] ${impact ? 'rock-shiver' : ''}`} style={{ width: '26vw', maxWidth: 210, minWidth: 150 }}>
-          <OreVein />
+        <div className="absolute bottom-[1%] left-[3%] w-[52vw] max-w-[520px] min-w-[380px]">
+          <ActivityRig
+            activity="mining"
+            state={activityStateFor(E?.kind, 'mining')}
+            eventKey={E ? `${E.kind}:${E.key}` : undefined}
+            className="h-auto w-full"
+          />
         </div>
 
         {impact && (
           <>
-            <span key={`ring-${E.key}`} className="fx-ring" style={{ left: '56%', bottom: '30%', width: 120, height: 120, border: `2px solid ${E.kind === 'rare' ? 'rgba(230,200,150,0.9)' : 'rgba(212,105,47,0.55)'}` }} />
-            <div key={`burst-${E.key}`} className="absolute bottom-[16%] left-[52%]">
+            <span key={`ring-${E.key}`} className="fx-ring" style={{ left: '55%', bottom: '24%', width: 120, height: 120, border: `2px solid ${E.kind === 'rare' ? 'rgba(230,200,150,0.9)' : 'rgba(212,105,47,0.55)'}` }} />
+            <div key={`burst-${E.key}`} className="absolute bottom-[15%] left-[53%]">
               <FlyBurst
                 colors={E.kind === 'rare' ? [CLR.bone, CLR.bronze, CLR.emberHi, '#ffe9c4'] : [CLR.line, '#6b6660', CLR.ember]}
                 particles={E.kind === 'rare' ? [...MINER_FX_FLY, { fx: 64, fy: -44, size: 2.2 }] : MINER_FX_FLY}
               />
             </div>
             {E.kind === 'rare' && (
-              <span key={`vein-${E.key}`} className="fx-flash" style={{ left: '62%', bottom: '18%', width: '16%', height: '26%', background: 'radial-gradient(circle, rgba(230,200,150,0.45), transparent 70%)' }} />
+              <span key={`vein-${E.key}`} className="fx-flash" style={{ left: '56%', bottom: '18%', width: '14%', height: '26%', background: 'radial-gradient(circle, rgba(230,200,150,0.45), transparent 70%)' }} />
             )}
           </>
         )}
@@ -567,24 +535,6 @@ function ForestBackdrop({ uid }: { uid: string }) {
   );
 }
 
-function OakTree({ uid }: { uid: string }) {
-  return (
-    <svg viewBox="0 0 220 240" className="h-full w-full" aria-hidden="true">
-      <g>
-        <path d="M86 240 L86 60 L134 60 L134 240 Z" fill={CLR.mid} stroke={CLR.stroke} strokeWidth="2.5" />
-        <path d="M96 220 L96 70 M110 220 L110 70 M124 190 L124 80" stroke={CLR.line} strokeWidth="1.6" opacity="0.6" />
-        <path d="M86 96 L74 88 L78 108 L70 122 L88 116 L94 134 L100 116 L112 130 L108 106 L122 98 L108 90 Z" fill={CLR.far} stroke={CLR.line} strokeWidth="1.5" />
-        {/* axe notch */}
-        <path d="M126 132 L152 122 L150 134 Z" fill="#0a0908" stroke={CLR.stroke} strokeWidth="1.5" />
-        <path d="M126 132 L142 128" stroke={CLR.boneDim} strokeWidth="1.2" />
-      </g>
-      {[56, 128, 170].map((x, i) => (
-        <circle key={`${uid}-o${i}`} cx={x} cy={64 + i * 18} r="3" fill={CLR.verdant} opacity="0.55" />
-      ))}
-    </svg>
-  );
-}
-
 export function WoodcutScene({ uid, event }: SceneProps) {
   const E = event;
   const impact = E && (E.kind === 'impact' || E.kind === 'rare');
@@ -601,30 +551,18 @@ export function WoodcutScene({ uid, event }: SceneProps) {
         </svg>
       </div>
       <div className="scene-layer scene-pllx-near">
-        <div className="idle-bob absolute bottom-[7%] left-[7%] w-[30vw] max-w-[200px] min-w-[140px]">
-          <svg viewBox="-60 -230 120 240" className="h-full w-full" aria-hidden="true">
-            <path d="M0 -150 C -24 -112 -40 -60 -40 -14 C -40 10 -26 16 0 16 C 26 16 40 10 40 -14 C 40 -60 24 -112 0 -150 Z" fill={CLR.near} stroke={CLR.stroke} strokeWidth="2" />
-            <circle cx="0" cy="-168" r="24" fill={CLR.near} stroke={CLR.line} strokeWidth="2" />
-            <path d="M-23 -168 C -23 -188 2 -192 2 -170" fill="none" stroke={CLR.bone} strokeWidth="1.2" opacity="0.4" />
-            <path d="M-18 -70 L -34 -84" stroke={CLR.line} strokeWidth="4" />
-          </svg>
-          <div className={`pointer-events-none ${impact ? 'axe-swing' : ''}`} style={{ position: 'absolute', left: '42%', top: '16%', width: 100, height: 90 }}>
-            <svg viewBox="0 0 100 90" className="h-full w-full" aria-hidden="true">
-              <path d="M28 10 L 66 70" stroke="#5c4a3a" strokeWidth="7" strokeLinecap="round" />
-              <path d="M16 68 L 30 82 L 72 76 L 58 60 Z" fill="#7f7a6e" stroke={CLR.line} strokeWidth="1.5" />
-              <path d="M30 82 L 38 70 L 28 64 Z" fill="#8f8a7e" />
-              <path d="M34 60 L 48 72" stroke={CLR.bone} strokeWidth="1.4" opacity="0.5" />
-            </svg>
-          </div>
-        </div>
-
-        <div className={`absolute bottom-[7%] right-[5%] ${impact ? 'rock-shiver' : ''}`} style={{ width: '26vw', maxWidth: 190, minWidth: 140 }}>
-          <OakTree uid={uid} />
+        <div className="absolute bottom-[1%] left-[3%] w-[52vw] max-w-[520px] min-w-[380px]">
+          <ActivityRig
+            activity="woodcutting"
+            state={activityStateFor(E?.kind, 'woodcutting')}
+            eventKey={E ? `${E.kind}:${E.key}` : undefined}
+            className="h-auto w-full"
+          />
         </div>
 
         {impact && (
           <>
-            <span key={`ring-${E.key}`} className="fx-ring" style={{ left: '57%', bottom: '24%', width: 100, height: 100, border: `2px solid ${E.kind === 'rare' ? 'rgba(135,167,107,0.9)' : 'rgba(138,133,125,0.5)'}` }} />
+            <span key={`ring-${E.key}`} className="fx-ring" style={{ left: '55%', bottom: '22%', width: 100, height: 100, border: `2px solid ${E.kind === 'rare' ? 'rgba(135,167,107,0.9)' : 'rgba(138,133,125,0.5)'}` }} />
             <div key={`chips-${E.key}`} className="absolute bottom-[14%] left-[54%]">
               <FlyBurst
                 colors={E.kind === 'rare' ? [CLR.bone, CLR.verdant, '#e6dcc2'] : ['#4a453e', '#6b6660', CLR.verdantDark]}
@@ -635,7 +573,7 @@ export function WoodcutScene({ uid, event }: SceneProps) {
               />
             </div>
             {E.kind === 'rare' && (
-              <span key={`leafv-${E.key}`} className="fx-flash" style={{ left: '60%', bottom: '26%', width: '12%', height: '22%', background: 'radial-gradient(circle, rgba(135,167,107,0.5), transparent 70%)' }} />
+              <span key={`leafv-${E.key}`} className="fx-flash" style={{ left: '56%', bottom: '24%', width: '12%', height: '22%', background: 'radial-gradient(circle, rgba(135,167,107,0.5), transparent 70%)' }} />
             )}
           </>
         )}
@@ -720,36 +658,22 @@ export function FishScene({ uid, event }: SceneProps) {
         <FogBands />
       </div>
       <div className="scene-layer scene-pllx-near">
-        {/* angler on shore */}
-        <div className="idle-bob absolute bottom-[12%] left-[8%] w-[26vw] max-w-[180px] min-w-[120px]">
-          <svg viewBox="-60 -230 120 240" className="h-full w-full" aria-hidden="true">
-            <path d="M0 -150 C -24 -112 -40 -60 -40 -14 C -40 10 -26 16 0 16 C 26 16 40 10 40 -14 C 40 -60 24 -112 0 -150 Z" fill={CLR.near} stroke={CLR.stroke} strokeWidth="2" />
-            <circle cx="0" cy="-168" r="24" fill={CLR.near} stroke={CLR.line} strokeWidth="2" />
-            <path d="M-23 -168 C -23 -188 2 -192 2 -170" fill="none" stroke={CLR.bone} strokeWidth="1.2" opacity="0.35" />
-            {/* seated rock */}
-            <path d="M-46 12 C -42 -6 -18 -14 2 -8 C 26 -4 44 2 46 16 Z" fill={CLR.far} stroke={CLR.stroke} strokeWidth="2" />
-            {/* arm reaching to rod */}
-            <path d="M22 -96 L 60 -70" stroke={CLR.line} strokeWidth="5" strokeLinecap="round" />
-          </svg>
-        </div>
-        {/* rod + line */}
-        <svg className="absolute bottom-[20%] left-[13%] pointer-events-none" width="520" height="300" viewBox="0 0 520 300" fill="none" aria-hidden="true">
-          <path d="M20 180 C 40 60 140 10 180 4" stroke="#5c4a3a" strokeWidth="4" />
-          <path d="M180 4 L 300 240" stroke="rgba(216,201,168,0.55)" strokeWidth="1.2" />
-        </svg>
-        {/* bobber */}
-        <div className={`absolute bottom-[38%] left-[44%] ${bite ? 'bob-bite' : 'bob-bob'}`} style={{ width: 14, height: 14 }}>
-          <span className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, #e08a44 0%, #d4692f 45%, #8a3a18 100%)' }} />
-          <span className="absolute -inset-2 rounded-full border border-[rgba(224,138,68,0.4)]" />
+        <div className="absolute bottom-[1%] left-[3%] w-[52vw] max-w-[520px] min-w-[380px]">
+          <ActivityRig
+            activity="fishing"
+            state={activityStateFor(E?.kind, 'fishing')}
+            eventKey={E ? `${E.kind}:${E.key}` : undefined}
+            className="h-auto w-full"
+          />
         </div>
 
         {(bite || splash) && (
-          <span key={`ring-${E.key}`} className="ripple-ring" style={{ left: '44.5%', top: '56%', width: 160, height: 160 }} />
+          <span key={`ring-${E.key}`} className="ripple-ring" style={{ left: '56%', top: '52%', width: 160, height: 160 }} />
         )}
         {splash && (
           <>
-            <span key={`ring2-${E.key}`} className="ripple-ring" style={{ left: '44.5%', top: '56%', width: 220, height: 220, animationDelay: '0.12s' }} />
-            <div key={`splash-${E.key}`} className="absolute bottom-[40%] left-[42%]">
+            <span key={`ring2-${E.key}`} className="ripple-ring" style={{ left: '56%', top: '52%', width: 220, height: 220, animationDelay: '0.12s' }} />
+            <div key={`splash-${E.key}`} className="absolute bottom-[22%] left-[54%]">
               <FlyBurst
                 colors={E.kind === 'rare' ? [CLR.bone, CLR.water, '#cdbfa4'] : [CLR.water, '#7f8f9f', 'rgba(200,216,230,0.9)']}
                 particles={[
@@ -974,35 +898,6 @@ function SmithyBackdrop({ uid }: { uid: string }) {
   );
 }
 
-function AnvilAndBlade({ uid }: { uid: string }) {
-  return (
-    <svg viewBox="0 0 220 160" className="h-full w-full" aria-hidden="true">
-      <defs>
-        <radialGradient id={`${uid}-coals`} cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0" stopColor="rgba(224,138,68,0.35)" />
-          <stop offset="1" stopColor="rgba(224,138,68,0)" />
-        </radialGradient>
-      </defs>
-      <g>
-        {/* anvil */}
-        <rect x="30" y="120" width="160" height="18" rx="3" fill={CLR.far} stroke={CLR.stroke} strokeWidth="2" />
-        <path d="M70 120 L70 96 L150 96 L150 120 Z" fill={CLR.mid} stroke={CLR.stroke} strokeWidth="2" />
-        <path d="M96 96 L96 60 L124 60 L124 96 Z" fill={CLR.mid} stroke={CLR.stroke} strokeWidth="2" />
-        <path d="M56 138 L56 154 L96 154 L96 138" fill={CLR.far} stroke={CLR.stroke} strokeWidth="1.5" />
-        {/* cooling charcoal glow under */}
-        <circle cx="110" cy="122" r="44" fill={`url(#${uid}-coals)`} className="flicker" />
-        {/* weapon on the anvil */}
-        <g transform="rotate(-6 110 80)">
-          <rect x="70" y="70" width="7" height="104" rx="3" fill="#a9a295" stroke={CLR.line} strokeWidth="1.5" />
-          <path d="M64 172 L73.5 200 L83 172 Z" fill="#7d786c" />
-          <rect x="66" y="66" width="15" height="13" fill={CLR.line} />
-        </g>
-        <path d="M78 78 L146 78" stroke={CLR.bronze} strokeWidth="1.6" opacity="0.6" />
-      </g>
-    </svg>
-  );
-}
-
 export function ForgeScene({ uid, event }: SceneProps) {
   const E = event;
   const strike = E && (E.kind === 'complete' || E.kind === 'rare' || E.kind === 'impact');
@@ -1018,48 +913,22 @@ export function ForgeScene({ uid, event }: SceneProps) {
         <EmberField count={6} left={66} right={4} bottom={20} color={CLR.ember} />
       </div>
       <div className="scene-layer scene-pllx-near">
-        {/* smith */}
-        <div className="idle-bob absolute bottom-[8%] left-[7%] w-[30vw] max-w-[200px] min-w-[140px]">
-          <svg viewBox="-60 -230 120 240" className="h-full w-full" aria-hidden="true">
-            <path d="M0 -150 C -24 -112 -40 -60 -40 -14 C -40 10 -26 16 0 16 C 26 16 40 10 40 -14 C 40 -60 24 -112 0 -150 Z" fill={CLR.near} stroke={CLR.stroke} strokeWidth="2" />
-            <circle cx="0" cy="-168" r="24" fill={CLR.near} stroke={CLR.line} strokeWidth="2" />
-            <path d="M-23 -168 C -23 -188 2 -192 2 -170" fill="none" stroke={CLR.bone} strokeWidth="1.2" opacity="0.4" />
-            <path d="M-18 -70 L -34 -84" stroke={CLR.line} strokeWidth="4" />
-          </svg>
-          <div className={`pointer-events-none ${strike ? 'hammer-swing' : ''}`} style={{ position: 'absolute', left: '40%', top: '12%', width: 90, height: 80 }}>
-            <svg viewBox="0 0 90 80" className="h-full w-full" aria-hidden="true">
-              <path d="M40 8 L 30 60" stroke="#5c4a3a" strokeWidth="7" strokeLinecap="round" />
-              <rect x="22" y="6" width="34" height="16" rx="2" fill="#a29b8d" stroke={CLR.line} strokeWidth="1.5" />
-              <rect x="26" y="2" width="4" height="24" fill="#8d8880" />
-            </svg>
-          </div>
-        </div>
-
-        {/* anvil + blade center */}
-        <div className={`absolute bottom-[7%] left-[42%] w-[22vw] max-w-[210px] min-w-[150px] ${strike ? 'rock-shiver' : ''}`}>
-          <AnvilAndBlade uid={uid} />
-        </div>
-
-        {/* forge mouth (furnace) right */}
-        <div className="absolute bottom-[8%] right-[3%] w-[24vw] max-w-[200px] min-w-[150px]">
-          <svg viewBox="0 0 200 170" className="h-full w-full" aria-hidden="true">
-            <path d="M18 170 L18 96 L54 96 L54 118 L146 118 L146 96 L182 96 L182 170 Z" fill={CLR.far} stroke={CLR.stroke} strokeWidth="2.5" />
-            <path d="M54 118 L146 118 L146 96 L54 96 Z" fill="#160d09" />
-            <g className="flicker">
-              <rect x="60" y="100" width="80" height="16" rx="8" fill="#e08a44" opacity="0.9" />
-              <rect x="70" y="104" width="60" height="8" rx="4" fill="#ffc27a" opacity="0.8" />
-            </g>
-            <path d="M60 96 C 80 70 120 70 140 96" fill="none" stroke={CLR.stroke} strokeWidth="2" />
-          </svg>
+        <div className="absolute bottom-[1%] left-[3%] w-[53vw] max-w-[540px] min-w-[390px]">
+          <ActivityRig
+            activity="forge"
+            state={activityStateFor(E?.kind, 'forge')}
+            eventKey={E ? `${E.kind}:${E.key}` : undefined}
+            className="h-auto w-full"
+          />
         </div>
 
         {strike && (
           <>
-            <div key={`sparks-${E.key}`} className="absolute bottom-[24%] left-[47%]">
+            <div key={`sparks-${E.key}`} className="absolute bottom-[20%] left-[54%]">
               <FlyBurst colors={[CLR.emberHi, CLR.bone, '#ffb347', CLR.ember]} particles={FORGE_SPARKS} />
             </div>
             {E.kind === 'rare' && (
-              <span key={`blade-${E.key}`} className="fx-flash" style={{ left: '40%', bottom: '10%', width: '26%', height: '36%', background: 'radial-gradient(circle, rgba(201,162,100,0.4), transparent 70%)' }} />
+              <span key={`blade-${E.key}`} className="fx-flash" style={{ left: '56%', bottom: '16%', width: '18%', height: '30%', background: 'radial-gradient(circle, rgba(201,162,100,0.4), transparent 70%)' }} />
             )}
           </>
         )}

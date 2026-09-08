@@ -27,6 +27,7 @@ export const CLR = {
   leatherDark: '#2a1f14',
   chain: '#3a3835',
   chainDark: '#242321',
+  skin: '#a8957a',
 };
 
 export const MATERIAL_GRADIENTS = {
@@ -90,6 +91,10 @@ export const VIEWBOX = {
   character: { x: -80, y: -280, width: 160, height: 320 },
   enemy: { x: -80, y: -200, width: 160, height: 240 },
   activity: { x: -60, y: -230, width: 120, height: 240 },
+  /** Full activity vignette — worker on the left, gathering/crafting node
+   *  on the right, both in one frame so tool swings, node reactions and
+   *  particles land in one shared coordinate space. */
+  activityRig: { x: -200, y: -240, width: 400, height: 260 },
 };
 
 export const TRANSFORM_ORIGINS = {

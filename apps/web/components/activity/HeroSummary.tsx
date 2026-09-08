@@ -4,15 +4,10 @@ import type { ReactNode } from 'react';
 import { LuChevronRight, LuShield, LuSwords } from 'react-icons/lu';
 import { useGame } from '@/lib/game-state';
 import { usePlayer } from '@/lib/use-player';
+import { xpStepForLevel } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { useNav } from '@/components/shell';
 import { Bar, BarLabel } from '@/components/game/primitives';
-
-const BASE_XP = 52;
-const XP_GROWTH = 1.1;
-function xpStepForLevel(level: number): number {
-  return Math.floor(BASE_XP * Math.pow(level, XP_GROWTH));
-}
 
 export function combatPower(stats: { strength: number; agility: number; intelligence: number; vitality: number; armor: number; critChance: number }): number {
   return Math.round(stats.strength * 1.6 + stats.agility * 1.1 + stats.vitality * 1.35 + stats.intelligence * 0.9 + stats.armor * 1.6 + stats.critChance * 2.2);

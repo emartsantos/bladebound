@@ -13,6 +13,7 @@ export interface PlayerView {
   player: PlayerSummary;
   baseStats: BaseStats;
   isDemoPlayer: boolean;
+  characterClass?: string;
 }
 
 /**
@@ -30,5 +31,10 @@ export function usePlayer(): PlayerView {
 
   const character = state.character!;
   const player = buildPlayerSummary(character);
-  return { player, baseStats: baseStatsForLevel(player.combatLevel), isDemoPlayer: false };
+  return {
+    player,
+    baseStats: baseStatsForLevel(player.combatLevel),
+    isDemoPlayer: false,
+    characterClass: character.class,
+  };
 }

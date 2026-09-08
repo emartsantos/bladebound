@@ -9,9 +9,9 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@premium-rpg/game-data": "^0.1.0",
     "typescript": "^5.9.3",
-    "vitest": "^1.6.1",
-    "@premium-rpg/game-data": "^0.1.0"
+    "vitest": "^1.6.1"
   },
   "dependencies": {
     "@premium-rpg/shared-types": "^0.1.0"

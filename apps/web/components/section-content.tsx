@@ -11,6 +11,8 @@ import { ITEM_BY_ID, QUESTS, ALL_REGIONS, ALL_ENEMIES } from '@premium-rpg/game-
 import { Tooltip } from '@/components/ui/tooltip';
 import { usePlayer } from '@/lib/use-player';
 import { useGame } from '@/lib/game-state';
+import { cumulativeXpForLevel } from '@/lib/player-summary';
+import { xpStepForLevel } from '@/lib/game/service';
 import { itemBucket, itemHeal, itemName } from '@/lib/item-names';
 import { SKILL_ORDER, skillLabel } from '@/lib/skills-meta';
 import { SkillIcon, ITEM_KIND_ICONS, EQUIPMENT_SLOT_ICONS } from '@/components/game/icons';
@@ -19,13 +21,17 @@ import { SectionHeader, Panel, PanelLabel, StatRow, StatGrid, Bar, BarLabel, Gam
 import { AdventureSection } from '@/components/AdventureSection';
 import { SkillPanel } from '@/components/SkillPanel';
 import { ActivitiesSection } from '@/components/activity/ActivitiesSection';
+import { ShopSection } from '@/components/ShopSection';
+import { DungeonsSection } from '@/components/DungeonsSection';
+import { getPlayerClass } from '@/lib/classes';
+import { assetPath } from '@/lib/asset-path';
 
 // ── SHARED HELPERS ──────────────────────────────────────────────
 
 function itemArt(id: string): string | null {
-  if (itemHeal(id) !== undefined) return '/art/item-potion.svg';
+  if (itemHeal(id) !== undefined) return assetPath('/art/item-potion.svg');
   const def = ITEM_BY_ID[id];
-  if (def?.type === 'weapon') return '/art/weapon-sword.svg';
+  if (def?.type === 'weapon') return assetPath('/art/weapon-sword.svg');
   return null;
 }
 
@@ -42,11 +48,17 @@ function RarityLabel({ id, name }: { id: string; name: string }) {
 // ── SECTION: CHARACTER ──────────────────────────────────────────
 
 function CharacterSection() {
-  const { player: p, baseStats } = usePlayer();
+  const { player: p, baseStats, characterClass } = usePlayer();
   const { state, skillView, maxHealth } = useGame();
   const combat = state.combat;
   const hpPct = Math.max(0, Math.min(100, Math.round((combat.playerHp / maxHealth) * 100)));
   const totalLevel = state.combatLevel + SKILL_ORDER.reduce((sum, id) => sum + skillView(id).level, 0);
+
+  // Combat progress uses the same XP/level math as skill bars (xp within the
+  // current level over the xp required for the next) — not XP modulo 100.
+  const combatXpStep = xpStepForLevel(state.combatLevel);
+  const combatIntoLevel = Math.max(0, state.combatXp - cumulativeXpForLevel(state.combatLevel));
+  const combatPct = combatXpStep > 0 ? Math.min(100, Math.round((combatIntoLevel / combatXpStep) * 100)) : 100;
 
   const attributes = [
     { label: 'Strength', value: baseStats.strength },
@@ -89,6 +101,11 @@ function CharacterSection() {
               <div className="flex items-baseline gap-2">
                 <h2 className="truncate font-display text-[15px] font-semibold text-bone">{p.name}</h2>
                 <span className="font-mono text-[11px] text-stone">Lv {state.combatLevel}</span>
+                {characterClass && (
+                  <span className="rounded-sm border border-bronze/40 bg-bronze/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-bronzeLight">
+                    {getPlayerClass(characterClass).name}
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-mist">Total level {totalLevel}</p>
             </div>
@@ -98,7 +115,7 @@ function CharacterSection() {
         <div className="space-y-3">
           <div>
             <BarLabel left="Combat progress" right={`${state.combatLevel} → ${state.combatLevel + 1}`} className="mb-1" />
-            <Bar variant="xp" pct={state.combatXp % 100} />
+            <Bar variant="xp" pct={combatPct} />
           </div>
           <div>
             <BarLabel left="Health" right={`${combat.playerHp} / ${maxHealth}`} className="mb-1" />
@@ -445,7 +462,7 @@ function WorldSection() {
         {ALL_REGIONS.map((r: Region, i) => {
           const unlocked = combatLevel >= r.recommendedLevel;
           const firstFoe = ALL_ENEMIES.find((e) => e.regionId === r.id);
-          const art = i === 0 ? '/art/region-starter-frontier.svg' : null;
+          const art = i === 0 ? assetPath('/art/region-starter-frontier.svg') : null;
           return (
             <button
               key={r.id}
@@ -499,11 +516,9 @@ function WorldSection() {
 
 const PLACEHOLDER: Record<string, { icon: IconType; blurb: string; empty: string; hint: string }> = {
   crafting: { icon: LuHammer, blurb: 'Weapons, armor, bars and consumables, forged from gathered materials.', empty: 'The fires are cold', hint: 'Mine and smelt ores to unlock forging here.' },
-  dungeons: { icon: LuFlame, blurb: 'Deep runs beneath the frontier, stocked with harder foes and richer spoils.', empty: 'No expedition logged', hint: 'Dungeons open as you prove your strength above ground.' },
   tasks: { icon: LuClipboardList, blurb: 'Daily and weekly objectives with steady rewards.', empty: 'No tasks issued', hint: 'New tasks arrive each day and week.' },
   collections: { icon: LuBookMarked, blurb: 'Bestiary, codex and completion tracking for hunters and scholars.', empty: 'Codex blank', hint: 'Defeat creatures and gather items to record them.' },
   achievements: { icon: LuTrophy, blurb: 'Milestones, titles and exclusive rewards for legendary hunters.', empty: 'No honours yet', hint: 'Bold hunts and long craft will earn your name.' },
-  shop: { icon: LuShoppingBag, blurb: 'Market stalls for supplies, silver and premium wares.', empty: 'Stalls shuttered', hint: 'The market restocks as the frontier stirs.' },
 };
 
 function PlaceholderSection({ id }: { id: SectionId }) {
@@ -612,12 +627,12 @@ export function SectionContent({ section }: { section: SectionId }) {
     case 'adventure': return <AdventureSection />;
     case 'activities': return <ActivitiesSection />;
     case 'crafting':
-    case 'dungeons':
     case 'tasks':
     case 'collections':
     case 'achievements':
-    case 'shop':
       return <PlaceholderSection id={section} />;
+    case 'dungeons': return <DungeonsSection />;
+    case 'shop': return <ShopSection />;
     case 'settings': return <SettingsSection />;
     default: return <PlaceholderSection id={section} />;
   }

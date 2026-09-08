@@ -1,29 +1,11 @@
 'use client';
 
 import { useAuth } from '@/context/auth-context';
-import { TopBar, LeftNav, Workspace, MobileBottomNav, NavProvider, useNav } from '@/components/shell';
-import { SectionContent } from '@/components/section-content';
-import { NotificationProvider, NotificationToast } from '@/components/ui/notification';
-import { GameProvider } from '@/lib/game-state';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LuSwords, LuLogIn, LuScrollText, LuUserPlus, LuChevronLeft } from 'react-icons/lu';
-
-function GameShell() {
-  const { activeSection } = useNav();
-
-  return (
-    <>
-      <TopBar />
-      <LeftNav />
-      <NotificationToast />
-      <MobileBottomNav />
-      <Workspace>
-        <SectionContent section={activeSection} />
-      </Workspace>
-    </>
-  );
-}
+import { PLAYER_CLASSES, PLAYER_CLASS_BY_ID, DEFAULT_PLAYER_CLASS } from '@/lib/classes';
+import type { PlayerClassId } from '@/lib/classes';
 
 function Wordmark({ tagline }: { tagline: string }) {
   return (
@@ -43,7 +25,11 @@ export default function HomePage() {
   const router = useRouter();
   const [showAuth, setShowAuth] = useState<'login' | 'register' | null>(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
-  const [registerForm, setRegisterForm] = useState({ username: '', password: '' });
+  const [registerForm, setRegisterForm] = useState({
+    username: '',
+    password: '',
+    characterClass: DEFAULT_PLAYER_CLASS as PlayerClassId,
+  });
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Redirect to /game when auth state changes (after login/register/guest)
@@ -153,7 +139,7 @@ export default function HomePage() {
                   onSubmit={(e) => {
                     e.preventDefault();
                     setAuthError(null);
-                    register(registerForm.username, registerForm.password).then((r) => { 
+                    register(registerForm.username, registerForm.password, registerForm.characterClass).then((r) => { 
                       if (!r.success) setAuthError(r.error ?? 'Registration failed'); 
                       else router.push('/game');
                     });
@@ -174,6 +160,31 @@ export default function HomePage() {
                     onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
                     className="input w-full"
                   />
+                  <div className="space-y-1.5">
+                    <p className="text-xs tracking-wider text-stone">CHOOSE A CLASS</p>
+                    {PLAYER_CLASSES.map((c) => {
+                      const active = registerForm.characterClass === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setRegisterForm({ ...registerForm, characterClass: c.id })}
+                          className={
+                            active
+                              ? 'w-full border border-bronze bg-bronze/10 p-2.5 text-left'
+                              : 'w-full border border-iron bg-charcoal/60 p-2.5 text-left transition-colors hover:border-stone'
+                          }
+                        >
+                          <span className="block font-display text-sm font-semibold text-bone">{c.name}</span>
+                          <span className="block text-xs text-mist">{c.title} · {c.attackStyle}</span>
+                          <span className="block text-xs text-stone">{c.description}</span>
+                        </button>
+                      );
+                    })}
+                    <p className="text-[11px] text-stone">
+                      Defaults to {PLAYER_CLASS_BY_ID[DEFAULT_PLAYER_CLASS].name} if you don&apos;t pick.
+                    </p>
+                  </div>
                   {authError && <p className="text-xs text-danger">{authError}</p>}
                   <button type="submit" className="btn btn-primary w-full">
                     <LuUserPlus className="h-3.5 w-3.5" /> Register
@@ -193,13 +204,16 @@ export default function HomePage() {
     );
   }
 
+  // Authenticated / guest users are redirected to the game shell by the effect
+  // above; this momentary frame avoids rendering a shell duplicate here.
   return (
-    <NotificationProvider>
-      <GameProvider>
-        <NavProvider>
-          <GameShell />
-        </NavProvider>
-      </GameProvider>
-    </NotificationProvider>
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex flex-col items-center gap-4">
+        <div className="flex h-10 w-10 items-center justify-center animate-pulse rounded-sm border border-iron bg-charcoal text-bronze shadow-inset">
+          <LuSwords className="h-4 w-4" />
+        </div>
+        <span className="text-xs tracking-[0.2em] text-stone">ENTERING THE FRONTIER…</span>
+      </div>
+    </div>
   );
 }

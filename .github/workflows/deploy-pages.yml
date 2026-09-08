@@ -1,0 +1,70 @@
+name: Deploy web to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22
+  # Static demo is hosted under /bladebound/; the web build bakes this into
+  # basePath (links, /_next assets) and asset paths via NEXT_PUBLIC_BASE_PATH.
+  NEXT_PUBLIC_BASE_PATH: /bladebound
+
+jobs:
+  build:
+    name: Build static export
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check web app
+        run: npm run typecheck --workspace web
+
+      - name: Unit tests (web)
+        run: npm test --workspace web
+
+      - name: Build static export
+        run: npm run build --workspace web
+
+      - name: Verify export output
+        run: |
+          test -f apps/web/out/index.html
+          test -d apps/web/out/_next
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/out
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

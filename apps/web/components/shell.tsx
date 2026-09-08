@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, ReactNode, createContext, useContext } from 'react';
+import { useState, useCallback, ReactNode, createContext, useContext } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   SECTION_META,
   PRIMARY_SECTIONS,
@@ -103,10 +104,34 @@ export function useNav() {
   return useContext(NavContext);
 }
 
+// Game sections are URL addressable: activeSection is derived from the path so
+// direct links, refresh and browser Back/Forward all keep the correct section.
+
+const VALID_SECTION_IDS = new Set<string>(Object.keys(SECTION_META));
+
+export function sectionFromPathname(pathname: string): SectionId {
+  const match = pathname.match(/^\/game\/([a-z]+)/);
+  const id = match?.[1] ?? 'activities';
+  return VALID_SECTION_IDS.has(id) ? (id as SectionId) : 'activities';
+}
+
+export function sectionHref(id: SectionId): string {
+  return id === 'activities' ? '/game' : `/game/${id}`;
+}
+
 export const NavProvider = ({ children }: { children: ReactNode }) => {
-  const [activeSection, setActiveSection] = useState<SectionId>('activities');
+  const pathname = usePathname();
+  const router = useRouter();
+  const activeSection = sectionFromPathname(pathname ?? '');
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [contextPanelOpen, setContextPanelOpen] = useState(true);
+
+  const setActiveSection = useCallback(
+    (id: SectionId) => {
+      router.push(sectionHref(id));
+    },
+    [router],
+  );
 
   return (
     <NavContext.Provider value={{ activeSection, setActiveSection, navCollapsed, setNavCollapsed, contextPanelOpen, setContextPanelOpen }}>

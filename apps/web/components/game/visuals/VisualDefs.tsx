@@ -58,6 +58,16 @@ export function VisualDefs() {
         <stop offset="0" stopColor="#c45a3a" />
         <stop offset="1" stopColor="#6e1f14" />
       </linearGradient>
+      <linearGradient id="vg-skin" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#c8b59a" />
+        <stop offset="0.5" stopColor="#a8957a" />
+        <stop offset="1" stopColor="#7a6a5a" />
+      </linearGradient>
+      <linearGradient id="vg-water" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#2c3a46" />
+        <stop offset="0.5" stopColor="#1c252c" />
+        <stop offset="1" stopColor="#10161c" />
+      </linearGradient>
 
       <radialGradient id="vg-ember-glow" cx="0.5" cy="0.5" r="0.5">
         <stop offset="0" stopColor="rgba(224,138,68,0.9)" />
