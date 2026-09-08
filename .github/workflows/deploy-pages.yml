@@ -16,9 +16,6 @@ concurrency:
 
 env:
   NODE_VERSION: 22
-  # Static demo is hosted under /bladebound/; the web build bakes this into
-  # basePath (links, /_next assets) and asset paths via NEXT_PUBLIC_BASE_PATH.
-  NEXT_PUBLIC_BASE_PATH: /bladebound
 
 jobs:
   build:
