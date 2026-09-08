@@ -1,0 +1,28 @@
+export const PALETTE = {
+  smoke: '#0f0e0c',
+  night: '#131110',
+  charcoal: '#1a1816',
+  blackened: '#23211e',
+  iron: '#2c2a26',
+  steel: '#3c3a36',
+  stone: '#55514b',
+  coldStone: '#6b6660',
+  mist: '#8a857d',
+  bone: '#e6dcc2',
+  parchment: '#d8c9a8',
+  bronze: '#b08754',
+  bronzeLight: '#c9a264',
+  ember: '#d4692f',
+  emberLight: '#e08a44',
+  leather: '#4a3b2e',
+  leatherLight: '#5c4a3a',
+  blood: '#9c3d30',
+  bloodBright: '#b0432f',
+  verdant: '#6f8f5a',
+  verdantBright: '#87a76b',
+  amber: '#c2994f',
+  steelBlue: '#65758a',
+  sickly: '#6e7d45',
+} as const;
+
+export type PaletteToken = keyof typeof PALETTE;

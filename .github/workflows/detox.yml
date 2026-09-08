@@ -1,0 +1,40 @@
+name: Mobile E2E (Detox, iOS simulator)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1' # weekly smoke on Monday 03:00 UTC
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  detox:
+    name: Detox smoke on iOS simulator
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Install Detox + pods
+        run: |
+          npm i -D detox jest-circus @babel/core
+          cd apps/mobile/ios && pod install --repo-update
+        working-directory: apps/mobile
+      - name: Build debug app for simulator
+        run: npx detox build --configuration ios.sim.debug
+        working-directory: apps/mobile
+      - name: Run smoke suite
+        run: npx detox test --configuration ios.sim.debug
+        working-directory: apps/mobile
+      - name: Upload Detox artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: detox-artifacts
+          path: apps/mobile/artifacts
+          retention-days: 14

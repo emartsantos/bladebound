@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="Goblin bestiary badge">
+  <!-- Dark Fantasy Etching: circular bestiary badge -->
+  <rect x="0" y="0" width="96" height="96" fill="#131110"/>
+  <!-- charcoal disc + iron ring -->
+  <circle cx="48" cy="48" r="40" fill="#1a1816"/>
+  <circle cx="48" cy="48" r="40" fill="none" stroke="#2c2a26" stroke-width="3"/>
+  <!-- goblin silhouette: ears + head -->
+  <path d="M38 34 L30 20 L40 30 L48 26 L56 30 L66 20 L58 34 L56 52 L48 58 L40 52 Z" fill="#2c2a26"/>
+  <!-- ember eyes -->
+  <circle cx="42" cy="40" r="3" fill="#d4692f"/>
+  <circle cx="54" cy="40" r="3" fill="#d4692f"/>
+  <!-- bone teeth -->
+  <path d="M42 50 h4 v4 h-4 Z M50 50 h4 v4 h-4 Z" fill="#e6dcc2"/>
+  <!-- level tag -->
+  <circle cx="71" cy="71" r="9" fill="#131110" stroke="#c9a264" stroke-width="1.5"/>
+  <text x="71" y="75" font-family="serif" font-size="10" fill="#e6dcc2" text-anchor="middle">1</text>
+</svg>

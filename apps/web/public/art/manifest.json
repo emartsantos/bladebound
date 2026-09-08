@@ -1,0 +1,68 @@
+{
+  "style": "dark-fantasy-etchings",
+  "palette": "packages/ui-tokens/src/palette.ts",
+  "rules": [
+    "flat ink-wash shading, no gradients",
+    "line work only from PALETTE colors",
+    "selective ember #d4692f accents",
+    "no photorealistic, cartoon, stock, or generic assets"
+  ],
+  "assets": [
+    {
+      "file": "weapon-sword.svg",
+      "type": "weapon",
+      "width": 64,
+      "height": 64,
+      "colors": ["#131110", "#2c2a26", "#d4692f", "#c9a264", "#1a1816", "#e6dcc2"],
+      "usage": "Iron sword item icon"
+    },
+    {
+      "file": "item-potion.svg",
+      "type": "item",
+      "width": 48,
+      "height": 48,
+      "colors": ["#131110", "#e6dcc2", "#d4692f", "#2c2a26", "#8a857d"],
+      "usage": "Healing potion item icon"
+    },
+    {
+      "file": "enemy-goblin.svg",
+      "type": "enemy",
+      "width": 96,
+      "height": 96,
+      "colors": ["#131110", "#1a1816", "#2c2a26", "#d4692f", "#e6dcc2", "#c9a264"],
+      "usage": "Bestiary badge for level 1 Goblin"
+    },
+    {
+      "file": "boss-forest-troll-king.svg",
+      "type": "boss",
+      "width": 160,
+      "height": 160,
+      "colors": ["#131110", "#1a1816", "#2c2a26", "#c9a264", "#e6dcc2", "#d4692f", "#b0432f"],
+      "usage": "Boss encounter art for Forest Troll King"
+    },
+    {
+      "file": "region-starter-frontier.svg",
+      "type": "region",
+      "width": 128,
+      "height": 128,
+      "colors": ["#131110", "#1a1816", "#2c2a26", "#87a76b", "#d4692f", "#c2994f"],
+      "usage": "Region map tile for Starter Frontier"
+    },
+    {
+      "file": "skill-mining.svg",
+      "type": "skill",
+      "width": 32,
+      "height": 32,
+      "colors": ["#131110", "#2c2a26", "#d4692f", "#e6dcc2"],
+      "usage": "Mining skill icon"
+    },
+    {
+      "file": "icon-travel.svg",
+      "type": "icon",
+      "width": 24,
+      "height": 24,
+      "colors": ["#d4692f", "#2c2a26"],
+      "usage": "Travel / waypoint navigation icon"
+    }
+  ]
+}

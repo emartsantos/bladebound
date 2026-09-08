@@ -1,0 +1,999 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ────────────────────────────────────────────────────────────
+   BLADEHOUND — global visual system
+   Dark medieval fantasy. Steel, leather, stone, ember warmth.
+   Functional reads first; atmosphere frames it.
+   ──────────────────────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    background-color: #0f0e0c;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    background-color: #0f0e0c;
+    background-image:
+      radial-gradient(1100px 720px at 80% -14%, rgba(176, 135, 84, 0.055) 0%, transparent 60%),
+      radial-gradient(920px 640px at 8% 114%, rgba(156, 61, 48, 0.045) 0%, transparent 55%),
+      radial-gradient(1700px 900px at 48% 128%, rgba(32, 29, 26, 0.55) 0%, transparent 72%);
+    background-attachment: fixed;
+    color: #e6dcc2;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: rgba(176, 135, 84, 0.32);
+    color: #e6dcc2;
+  }
+
+  :focus {
+    outline: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgba(176, 135, 84, 0.7);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Quiet, dark scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #2c2a26 transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2c2a26;
+    border: 2px solid #0f0e0c;
+    border-radius: 6px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3c3a36;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* ── SURFACES ───────────────────────────────────────────── */
+
+  .panel {
+    background: linear-gradient(180deg, #292622 0%, #24211e 100%);
+    border: 1px solid #31302b;
+    border-radius: 4px;
+    box-shadow: inset 0 1px 0 rgba(216, 201, 168, 0.045), 0 1px 0 rgba(0, 0, 0, 0.4);
+  }
+
+  .panel-inset {
+    background: #1a1816;
+    border: 1px solid #26241f;
+    border-radius: 3px;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.45);
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(15, 14, 12, 0.9);
+    box-shadow: inset 0 -1px 0 rgba(216, 201, 168, 0.05);
+  }
+
+  /* Engraved divider — brass thread on dark iron */
+  .divider {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(176, 135, 84, 0.3) 18%,
+      rgba(176, 135, 84, 0.3) 82%,
+      transparent 100%
+    );
+  }
+
+  .divider-row {
+    border-top: 1px solid rgba(10, 9, 8, 0.85);
+    box-shadow: inset 0 1px 0 rgba(216, 201, 168, 0.05);
+  }
+
+  /* ── TYPE ───────────────────────────────────────────────── */
+
+  .section-label {
+    font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #6b6660;
+  }
+
+  .stat-label {
+    font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: #6b6660;
+  }
+
+  .stat-value {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: #d8c9a8;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── CONTROLS ───────────────────────────────────────────── */
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    user-select: none;
+    transition:
+      background-color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+      color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+
+  .btn-primary {
+    background: linear-gradient(180deg, #d9773c 0%, #d4692f 55%, #b85528 100%);
+    color: #1a1511;
+    border-color: #a34f24;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      0 1px 6px rgba(0, 0, 0, 0.35);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(180deg, #e08a44 0%, #d9773c 60%, #c05f2b 100%);
+  }
+
+  .btn-secondary {
+    background: linear-gradient(180deg, #2e2b27 0%, #262320 100%);
+    color: #d8c9a8;
+    border-color: #3c3a36;
+    box-shadow:
+      inset 0 1px 0 rgba(216, 201, 168, 0.06),
+      0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    color: #e6dcc2;
+    background: linear-gradient(180deg, #35322e 0%, #2a2723 100%);
+    border-color: #55514b;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: #8a857d;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    color: #e6dcc2;
+    background: rgba(176, 135, 84, 0.06);
+  }
+
+  .btn-danger {
+    background: rgba(156, 61, 48, 0.16);
+    color: #e06a54;
+    border-color: rgba(156, 61, 48, 0.45);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: rgba(156, 61, 48, 0.26);
+    color: #f0a08d;
+  }
+
+  .btn-success {
+    background: rgba(111, 143, 90, 0.14);
+    color: #a9c488;
+    border-color: rgba(111, 143, 90, 0.45);
+  }
+  .btn-success:hover:not(:disabled) {
+    background: rgba(111, 143, 90, 0.24);
+    color: #c3dc9f;
+  }
+
+  .btn-is-active {
+    background: rgba(212, 105, 47, 0.16);
+    color: #e08a44;
+    border-color: rgba(212, 105, 47, 0.42);
+  }
+
+  .btn-icon {
+    width: 30px;
+    padding: 0;
+  }
+
+  .input {
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 3px;
+    border: 1px solid #2c2a26;
+    background: #1a1816;
+    color: #d8c9a8;
+    font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+    font-size: 12px;
+    transition:
+      border-color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .input::placeholder {
+    color: rgba(107, 102, 96, 0.8);
+  }
+  .input:focus {
+    outline: none;
+    border-color: rgba(176, 135, 84, 0.6);
+    box-shadow: 0 0 0 2px rgba(176, 135, 84, 0.18);
+  }
+
+  /* ── BARS & SLOTS ───────────────────────────────────────── */
+
+  .bar {
+    position: relative;
+    overflow: hidden;
+    border-radius: 2px;
+    background: rgba(138, 133, 125, 0.14);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  .bar-fill {
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    transition:
+      width 200ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 120ms linear;
+  }
+  .bar-fill-xp {
+    background: linear-gradient(180deg, #c9a264 0%, #b08754 60%, #96713f 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+  .bar-fill-hp {
+    background: linear-gradient(180deg, #b8432f 0%, #9c3d30 60%, #7f3026 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+  .bar-fill-player {
+    background: linear-gradient(180deg, #7d8ea5 0%, #65758a 55%, #4f5d70 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+  .bar-fill-ember {
+    background: linear-gradient(180deg, #e08a44 0%, #d4692f 55%, #b85528 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+  .bar-fill-neutral {
+    background: linear-gradient(180deg, #55514b 0%, #3c3a36 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .slot {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    background: rgba(20, 18, 16, 0.55);
+    border: 1px solid rgba(138, 133, 125, 0.22);
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45);
+    transition:
+      border-color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .slot:hover {
+    border-color: rgba(176, 135, 84, 0.45);
+    background: rgba(35, 32, 29, 0.75);
+  }
+
+  .art-frame {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    background: #131110;
+    border: 1px solid #2c2a26;
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+  }
+
+  /* ── TEXT / chips ───────────────────────────────────────── */
+
+  .kbd {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 2px;
+    border: 1px solid #3c3a36;
+    border-bottom-width: 2px;
+    color: #8a857d;
+    background: #1a1816;
+  }
+
+  /* ── MOTION (reduced-motion handled in @layer base) ─────── */
+
+  .gain-pop {
+    animation: gain-pop 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .fade-in {
+    animation: fade-in 180ms ease-out;
+  }
+  .toast-in {
+    animation: toast-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .legendary-pulse {
+    animation: ember-pulse 3.4s ease-in-out infinite;
+  }
+  .sheen {
+    background-image: linear-gradient(
+      115deg,
+      transparent 20%,
+      rgba(224, 138, 68, 0.12) 40%,
+      rgba(224, 138, 68, 0.22) 50%,
+      rgba(224, 138, 68, 0.12) 60%,
+      transparent 80%
+    );
+    background-size: 220% 100%;
+    animation: sheen-sweep 4.5s ease-in-out infinite;
+  }
+}
+
+@keyframes gain-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translateX(14px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes ember-pulse {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 2px 5px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(212, 105, 47, 0.4),
+      0 0 14px rgba(212, 105, 47, 0.12);
+  }
+  50% {
+    box-shadow:
+      inset 0 2px 5px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(212, 105, 47, 0.65),
+      0 0 20px rgba(212, 105, 47, 0.24);
+  }
+}
+
+@keyframes sheen-sweep {
+  0%,
+  55% {
+    background-position: 120% 0;
+  }
+  90%,
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+/* ═════════════════════════════════════════════════════════════
+   CINEMATIC ACTIVITY SCENE
+   Layered etched-dark-fantasy stage. The live representation of
+   the player's current activity. Budget-friendly: CSS transforms,
+   opacity, a handful of keyframes. Reduced-motion is handled by
+   the base layer kill-switch; parallax is JS-gated as well.
+   ═════════════════════════════════════════════════════════════ */
+
+/* Stage + layer plumbing */
+.scene-root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  contain: layout paint style;
+  background: #100e0c;
+}
+.scene-layer {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.scene-enter {
+  animation: scene-enter 300ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.scene-leave {
+  animation: scene-leave 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.scene-veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* Bottom blend into the page — never a hard rectangle edge */
+.scene-blend {
+  background: linear-gradient(
+    180deg,
+    transparent 62%,
+    rgba(15, 14, 12, 0.5) 88%,
+    #0f0e0c 100%
+  );
+}
+/* Readability scrims over the art, not blur-heavy glass */
+.scene-scrim-l {
+  background: linear-gradient(
+    90deg,
+    rgba(13, 12, 10, 0.82) 0%,
+    rgba(13, 12, 10, 0.4) 32%,
+    transparent 56%
+  );
+}
+.scene-scrim-r {
+  background: linear-gradient(
+    270deg,
+    rgba(13, 12, 10, 0.74) 0%,
+    rgba(13, 12, 10, 0.3) 30%,
+    transparent 58%
+  );
+}
+.scene-frame {
+  box-shadow:
+    inset 0 1px 0 rgba(216, 201, 168, 0.06),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.6),
+    0 18px 44px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes scene-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes scene-leave {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Subtle layered parallax — driven by CSS vars --px/--py on .scene-root.
+   Magnitudes stay tiny (3 / 6 / 9px) so it never feels like a gimmick. */
+.scene-pllx {
+  transform: translate3d(
+    calc(var(--px, 0) * -2px),
+    calc(var(--py, 0) * -2px),
+    0
+  );
+}
+.scene-pllx-mid {
+  transform: translate3d(
+    calc(var(--px, 0) * -4px),
+    calc(var(--py, 0) * -3px),
+    0
+  );
+}
+.scene-pllx-near {
+  transform: translate3d(
+    calc(var(--px, 0) * -7px),
+    calc(var(--py, 0) * -5px),
+    0
+  );
+}
+
+/* Pause everything while the tab is hidden (JS toggles data-paused) */
+.scene-root[data-paused='true'] *,
+.scene-root[data-paused='true'] *::before,
+.scene-root[data-paused='true'] *::after {
+  animation-play-state: paused !important;
+}
+
+/* ── Idle / atmosphere primitives ─────────────────────────── */
+
+.idle-bob {
+  animation: idle-bob 4.4s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+.sway {
+  animation: sway 6s ease-in-out infinite;
+  transform-origin: 50% 0%;
+}
+.flicker {
+  animation: flicker 2.8s ease-in-out infinite;
+}
+.moon-glow {
+  animation: moon-glow 6s ease-in-out infinite;
+}
+.fog-band {
+  animation: fog-drift 30s linear infinite;
+}
+.ember-float {
+  animation: ember-drift 7s linear infinite;
+}
+.leaf-float {
+  animation: leaf-drift 9s linear infinite;
+}
+.bubble-rise {
+  animation: bubble-rise 2.7s ease-in infinite;
+}
+.fume-rise {
+  animation: fume-rise 5s ease-out infinite;
+}
+.water-shine {
+  animation: water-shine 5s ease-in-out infinite;
+}
+.heat-shimmer {
+  animation: heat-shimmer 2.1s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+.forge-glow {
+  animation: forge-glow 1.9s ease-in-out infinite;
+}
+
+@keyframes idle-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+}
+@keyframes sway {
+  0%,
+  100% {
+    transform: rotate(-1.2deg);
+  }
+  50% {
+    transform: rotate(1.2deg);
+  }
+}
+@keyframes flicker {
+  0%,
+  100% {
+    opacity: 0.82;
+    transform: scale(1);
+  }
+  30% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.96);
+  }
+  80% {
+    opacity: 0.96;
+  }
+}
+@keyframes moon-glow {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes fog-drift {
+  from {
+    transform: translateX(-6%);
+  }
+  to {
+    transform: translateX(6%);
+  }
+}
+@keyframes ember-drift {
+  from {
+    transform: translateY(14px) translateX(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.8;
+  }
+  to {
+    transform: translateY(-130px) translateX(16px);
+    opacity: 0;
+  }
+}
+@keyframes leaf-drift {
+  from {
+    transform: translate(0, -12px) rotate(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.9;
+  }
+  to {
+    transform: translate(-48px, 96px) rotate(-30deg);
+    opacity: 0;
+  }
+}
+@keyframes bubble-rise {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.9;
+  }
+  to {
+    transform: translateY(-36px);
+    opacity: 0;
+  }
+}
+@keyframes fume-rise {
+  from {
+    transform: translateY(10px) scale(0.9);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.5;
+  }
+  to {
+    transform: translateY(-44px) scale(1.6);
+    opacity: 0;
+  }
+}
+@keyframes water-shine {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+@keyframes heat-shimmer {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scaleY(0.8);
+  }
+  50% {
+    opacity: 0.88;
+    transform: scaleY(1.05);
+  }
+}
+@keyframes forge-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 70px 24px rgba(212, 105, 47, 0.26),
+      0 0 160px 60px rgba(176, 135, 84, 0.1);
+    opacity: 0.92;
+  }
+  50% {
+    box-shadow:
+      0 0 110px 40px rgba(212, 105, 47, 0.42),
+      0 0 220px 90px rgba(176, 135, 84, 0.16);
+    opacity: 1;
+  }
+}
+
+/* ── Event / combat effects─────────── */
+
+.hero-strike {
+  animation: hero-strike 0.46s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+  transform-origin: 34% 78%;
+}
+@keyframes hero-strike {
+  0% {
+    transform: rotate(0deg);
+  }
+  40% {
+    transform: rotate(-9deg) translateX(-7px);
+  }
+  60% {
+    transform: rotate(3deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.enemy-hit {
+  animation: enemy-hit 0.5s ease-out both;
+}
+@keyframes enemy-hit {
+  0% {
+    transform: translateX(-18px);
+  }
+  30% {
+    transform: translateX(7px);
+  }
+  55% {
+    transform: translateX(-4px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.hero-hurt {
+  animation: hero-hurt 0.5s ease-out both;
+}
+@keyframes hero-hurt {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-8px) rotate(-1.5deg);
+  }
+  55% {
+    transform: translateX(5px);
+  }
+  80% {
+    transform: translateX(-2px);
+  }
+}
+
+.enemy-defeat {
+  animation: enemy-defeat 0.7s cubic-bezier(0.4, 0, 0.6, 1) both;
+}
+@keyframes enemy-defeat {
+  to {
+    transform: translateY(48px) rotate(7deg);
+    opacity: 0;
+  }
+}
+
+.fx-ring {
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+  animation: fx-ring 0.6s ease-out both;
+}
+@keyframes fx-ring {
+  from {
+    transform: scale(0.2);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+.fx-flash {
+  animation: fx-flash 0.45s ease-out both;
+}
+@keyframes fx-flash {
+  0% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ── Tool swings (gathering / crafting) ─────────────────── */
+
+.pick-swing {
+  animation: pick-swing 0.5s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+  transform-origin: 12% 70%;
+}
+@keyframes pick-swing {
+  0% {
+    transform: rotate(-52deg);
+  }
+  45% {
+    transform: rotate(16deg);
+  }
+  65% {
+    transform: rotate(4deg);
+  }
+  100% {
+    transform: rotate(-52deg);
+  }
+}
+
+.axe-swing {
+  animation: axe-swing 0.5s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+  transform-origin: 16% 66%;
+}
+@keyframes axe-swing {
+  0% {
+    transform: rotate(-58deg);
+  }
+  45% {
+    transform: rotate(18deg);
+  }
+  65% {
+    transform: rotate(5deg);
+  }
+  100% {
+    transform: rotate(-58deg);
+  }
+}
+
+.hammer-swing {
+  animation: hammer-swing 0.42s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+  transform-origin: 20% 84%;
+}
+@keyframes hammer-swing {
+  0% {
+    transform: rotate(-42deg);
+  }
+  42% {
+    transform: rotate(32deg);
+  }
+  62% {
+    transform: rotate(8deg);
+  }
+  100% {
+    transform: rotate(-42deg);
+  }
+}
+
+.rock-shiver {
+  animation: rock-shiver 0.5s ease-out both;
+}
+@keyframes rock-shiver {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(3px);
+  }
+  60% {
+    transform: translateY(-1px);
+  }
+}
+
+/* Flying chips / sparks / debris — direction set per particle with --fx/--fy */
+.p-fly {
+  position: absolute;
+  pointer-events: none;
+  animation: p-fly 0.6s cubic-bezier(0.25, 0.6, 0.6, 1) forwards;
+}
+@keyframes p-fly {
+  from {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(var(--fx, 14px), var(--fy, -18px)) scale(0.2);
+  }
+}
+
+/* ── Fishing ─────────────────────────────────────────────── */
+
+.bob-bob {
+  animation: bob-bob 2.3s ease-in-out infinite;
+}
+@keyframes bob-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+.bob-bite {
+  animation: bob-bite 0.6s cubic-bezier(0.3, 0.7, 0.4, 1) both;
+}
+@keyframes bob-bite {
+  0% {
+    transform: translateY(0);
+  }
+  20% {
+    transform: translateY(-14px);
+  }
+  55% {
+    transform: translateY(24px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+.ripple-ring {
+  position: absolute;
+  border: 1px solid rgba(142, 168, 196, 0.5);
+  border-radius: 999px;
+  pointer-events: none;
+  animation: ripple-ring 0.9s ease-out both;
+}
+@keyframes ripple-ring {
+  from {
+    transform: scale(0.15);
+    opacity: 0.85;
+  }
+  to {
+    transform: scale(3.4);
+    opacity: 0;
+  }
+}
+
+/* ── Real art medallion used inside scenes ──────────────── */
+
+.enemy-medallion {
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.65))
+    drop-shadow(0 0 0 rgba(212, 105, 47, 0.35));
+  image-rendering: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-pllx,
+  .scene-pllx-mid,
+  .scene-pllx-near {
+    transform: none !important;
+  }
+  .scene-root *,
+  .scene-root *::before,
+  .scene-root *::after,
+  .p-fly {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+  }
+}

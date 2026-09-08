@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" role="img" aria-label="Healing potion">
+  <!-- Dark Fantasy Etching: alchemy flask -->
+  <rect x="0" y="0" width="48" height="48" fill="#131110"/>
+  <!-- flask neck + body -->
+  <path d="M19 8 h10 v5 c6 2 9 8 9 15 a12 12 0 0 1 -24 0 c0 -7 3 -13 9 -15 Z" fill="#e6dcc2"/>
+  <!-- ember liquid -->
+  <path d="M20 22 a8 8 0 0 1 16 0 a8 8 0 0 1 -16 0 Z" fill="#d4692f"/>
+  <!-- cork -->
+  <rect x="20" y="4" width="8" height="5" fill="#2c2a26"/>
+  <!-- bone highlight -->
+  <path d="M17 30 a10 10 0 0 0 4 6 l2 -3 c-2 -1 -3 -2 -4 -4 Z" fill="#8a857d"/>
+</svg>

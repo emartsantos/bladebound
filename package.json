@@ -1,0 +1,18 @@
+{
+  "name": "premium-rpg-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Premium dark fantasy idle RPG monorepo",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test:ui": "vitest run --project ui-tokens",
+    "typecheck:all": "npx tsc --noEmit --project packages/ui-tokens/tsconfig.json && npx tsc --noEmit --project packages/game-engine/tsconfig.json && npx tsc --noEmit --project packages/shared-types/tsconfig.json && npx tsc --noEmit --project packages/validation/tsconfig.json && npx tsc --noEmit --project packages/game-data/tsconfig.json && npx tsc --noEmit --project packages/utilities/tsconfig.json && npx tsc --noEmit --project packages/telemetry/tsconfig.json"
+  }
+}

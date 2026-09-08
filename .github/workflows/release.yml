@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  release:
+    name: Build and release ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build web app
+        run: npm run build --workspace web
+
+      - name: Generate release notes (phase commits since last tag)
+        id: notes
+        run: |
+          PREV=$(git describe --tags --abbrev=0 HEAD~ 2>/dev/null || echo "")
+          git log --oneline --no-merges ${PREV:+$PREV..}HEAD \
+            | sed 's/^/- /' | head -n 100 > RELEASE_NOTES.md
+          echo "notes_file=RELEASE_NOTES.md" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: ${{ steps.notes.outputs.notes_file }}
+          generate_release_notes: true
+
+  # Optional deploy steps. Each runs only when the matching secret is present;
+  # remove or extend per your hosting provider.
+  deploy-web:
+    name: Deploy web (Vercel)
+    runs-on: ubuntu-latest
+    needs: release
+    if: env.VERCEL_TOKEN != ''
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: node_modules/.bin/vercel pull --yes --environment=production --token=${{ env.VERCEL_TOKEN }}
+        working-directory: apps/web
+      - run: node_modules/.bin/vercel build --prod --token=${{ env.VERCEL_TOKEN }}
+        working-directory: apps/web
+      - run: node_modules/.bin/vercel deploy --prebuilt --prod --token=${{ env.VERCEL_TOKEN }}
+        working-directory: apps/web
+
+  mobile-production-build:
+    name: Build mobile (EAS)
+    runs-on: ubuntu-latest
+    needs: release
+    if: env.EXPO_TOKEN != ''
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: EAS production Android build
+        run: npx eas-cli build --platform android --profile production --non-interactive
+        working-directory: apps/mobile
+      - name: EAS submit to Play Store
+        run: npx eas-cli submit --platform android --profile production --non-interactive
+        working-directory: apps/mobile
+        # iOS builds + App Store Connect submission require macOS (EAS handles
+        # it remotely) and an Apple Developer account:
+        #   npx eas-cli build --platform ios --profile production --non-interactive

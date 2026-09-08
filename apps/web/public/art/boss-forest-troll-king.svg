@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" role="img" aria-label="Forest Troll King boss badge">
+  <!-- Dark Fantasy Etching: dramatic boss badge -->
+  <rect x="0" y="0" width="160" height="160" fill="#131110"/>
+  <circle cx="80" cy="80" r="70" fill="#1a1816"/>
+  <circle cx="80" cy="80" r="70" fill="none" stroke="#c9a264" stroke-width="3"/>
+  <!-- shadowed head -->
+  <path d="M54 74 L50 40 L64 50 L74 34 L86 34 L96 50 L110 40 L106 74 L96 96 L80 106 L64 96 Z" fill="#2c2a26"/>
+  <!-- tusks -->
+  <path d="M66 96 L64 110 L72 98 Z M94 96 L96 110 L88 98 Z" fill="#e6dcc2"/>
+  <!-- ember eyes -->
+  <ellipse cx="68" cy="62" rx="5" ry="7" fill="#d4692f"/>
+  <ellipse cx="92" cy="62" rx="5" ry="7" fill="#d4692f"/>
+  <!-- bloodBright maw -->
+  <path d="M72 78 L88 78 L84 84 L76 84 Z" fill="#b0432f"/>
+  <!-- crown marks -->
+  <path d="M72 36 L74 28 L80 34 L86 28 L88 36" fill="none" stroke="#c9a264" stroke-width="3"/>
+</svg>

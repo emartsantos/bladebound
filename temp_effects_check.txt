@@ -1,0 +1,348 @@
+﻿import type {
+  EffectCategory,
+  EffectDefinition,
+  EffectPreset,
+  EffectStackingRule,
+  EffectType,
+} from '@premium-rpg/shared-types';
+
+// â”€â”€â”€ EFFECT DEFINITIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Central registry of all status effects. Adding a new effect only requires
+// an entry here â€” no combat code changes needed.
+
+export const EFFECT_DEFINITIONS: EffectDefinition[] = [
+  // â”€â”€â”€ DAMAGE OVER TIME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  {
+    id: 'bleed',
+    name: 'Bleed',
+    description: 'Physical damage over time. Stacks additively.',
+    category: 'damage_over_time',
+    stacking: 'stack_add',
+    maxStacks: 5,
+    tickInterval: 1,
+    resistible: true,
+    tags: ['physical', 'bleed', 'dot'],
+    icon: 'ðŸ©¸',
+    color: '#dc2626',
+  },
+  {
+    id: 'burn',
+    name: 'Burn',
+    description: 'Fire damage over time. Higher intensity, fewer stacks.',
+    category: 'damage_over_time',
+    stacking: 'refresh',
+    maxStacks: 3,
+    tickInterval: 1,
+    resistible: true,
+    tags: ['fire', 'magic', 'dot'],
+    icon: 'ðŸ”¥',
+    color: '#ef4444',
+  },
+  {
+    id: 'poison',
+    name: 'Poison',
+    description: 'Nature damage over time. Long duration, low intensity per tick.',
+    category: 'damage_over_time',
+    stacking: 'stack_add',
+    maxStacks: 10,
+    tickInterval: 1,
+    resistible: true,
+    tags: ['nature', 'poison', 'dot'],
+    icon: 'â˜ ï¸',
+    color: '#22c55e',
+  },
+
+  // â”€â”€â”€ HEALING OVER TIME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  {
+    id: 'regeneration',
+    name: 'Regeneration',
+    description: 'Heals over time. Stacks refresh duration.',
+    category: 'healing_over_time',
+    stacking: 'refresh',
+    maxStacks: 3,
+    tickInterval: 1,
+    resistible: false,
+    tags: ['healing', 'hot', 'nature'],
+    icon: 'ðŸ’š',
+    color: '#16a34a',
+  },
+
+  // â”€â”€â”€ BUFFS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  {
+    id: 'accuracy_buff',
+    name: 'Precision',
+    description: 'Increases hit chance.',
+    category: 'buff',
+    stacking: 'stack_add',
+    maxStacks: 5,
+    resistible: false,
+    tags: ['buff', 'accuracy'],
+    icon: 'ðŸŽ¯',
+    color: '#3b82f6',
+  },
+  {
+    id: 'evasion_buff',
+    name: 'Evasion',
+    description: 'Increases evasion chance.',
+    category: 'buff',
+    stacking: 'stack_add',
+    maxStacks: 5,
+    resistible: false,
+    tags: ['buff', 'evasion'],
+    icon: 'ðŸ’¨',
+    color: '#06b6d4',
+  },
+  {
+    id: 'critical_buff',
+    name: 'Critical Focus',
+    description: 'Increases critical hit chance.',
+    category: 'buff',
+    stacking: 'stack_add',
+    maxStacks: 5,
+    resistible: false,
+    tags: ['buff', 'crit'],
+    icon: 'âš¡',
+    color: '#fbbf24',
+  },
+  {
+    id: 'damage_buff',
+    name: 'Might',
+    description: 'Increases damage dealt.',
+    category: 'buff',
+    stacking: 'stack_add',
+    maxStacks: 5,
+    resistible: false,
+    tags: ['buff', 'damage'],
+    icon: 'ðŸ’ª',
+    color: '#f97316',
+  },
+  {
+    id: 'defense_buff',
+    name: 'Fortitude',
+    description: 'Increases armor and defense.',
+    category: 'buff',
+    stacking: 'stack_add',
+    maxStacks: 5,
+    resistible: false,
+    tags: ['buff', 'defense'],
+    icon: 'ðŸ›¡ï¸',
+    color: '#64748b',
+  },
+  {
+    id: 'speed_buff',
+    name: 'Haste',
+    description: 'Increases attack speed.',
+    category: 'buff',
+    stacking: 'stack_add',
+    maxStacks: 3,
+    resistible: false,
+    tags: ['buff', 'speed'],
+    icon: 'âš¡',
+    color: '#a855f7',
+  },
+
+  // â”€â”€â”€ DEBUFFS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  {
+    id: 'slow',
+    name: 'Slow',
+    description: 'Reduces attack speed. Stacks additively.',
+    category: 'debuff',
+    stacking: 'stack_add',
+    maxStacks: 5,
+    resistible: true,
+    tags: ['debuff', 'slow', 'crowd_control'],
+    icon: 'ðŸŒ',
+    color: '#64748b',
+  },
+  {
+    id: 'armor_reduction',
+    name: 'Armor Shred',
+    description: 'Reduces target armor. Stacks additively.',
+    category: 'debuff',
+    stacking: 'stack_add',
+    maxStacks: 10,
+    resistible: true,
+    tags: ['debuff', 'armor', 'physical'],
+    icon: 'ðŸ”¨',
+    color: '#ef4444',
+  },
+  {
+    id: 'accuracy_reduction',
+    name: 'Blind',
+    description: 'Reduces hit chance.',
+    category: 'debuff',
+    stacking: 'refresh',
+    maxStacks: 3,
+    resistible: true,
+    tags: ['debuff', 'accuracy', 'crowd_control'],
+    icon: 'ðŸŒ«ï¸',
+    color: '#94a3b8',
+  },
+  {
+    id: 'evasion_reduction',
+    name: 'Marked',
+    description: 'Reduces evasion chance.',
+    category: 'debuff',
+    stacking: 'refresh',
+    maxStacks: 3,
+    resistible: true,
+    tags: ['debuff', 'evasion'],
+    icon: 'ðŸŽ¯',
+    color: '#dc2626',
+  },
+
+  // â”€â”€â”€ CONTROL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  {
+    id: 'stun',
+    name: 'Stun',
+    description: 'Prevents all actions. Does not stack â€” refreshes duration.',
+    category: 'stun',
+    stacking: 'refresh',
+    maxStacks: 1,
+    resistible: true,
+    tags: ['cc', 'stun', 'control'],
+    icon: 'ðŸ’«',
+    color: '#fbbf24',
+  },
+  {
+    id: 'root',
+    name: 'Root',
+    description: 'Prevents movement. Allows attacks and abilities.',
+    category: 'stun',
+    stacking: 'refresh',
+    maxStacks: 1,
+    resistible: true,
+    tags: ['cc', 'root', 'control'],
+    icon: 'ðŸŒ±',
+    color: '#84cc16',
+  },
+  {
+    id: 'silence',
+    name: 'Silence',
+    description: 'Prevents ability usage. Allows basic attacks.',
+    category: 'stun',
+    stacking: 'refresh',
+    maxStacks: 1,
+    resistible: true,
+    tags: ['cc', 'silence', 'control'],
+    icon: 'ðŸ¤',
+    color: '#a855f7',
+  },
+
+  // â”€â”€â”€ DEFENSIVE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  {
+    id: 'shield',
+    name: 'Shield',
+    description: 'Absorbs incoming damage. Does not tick.',
+    category: 'shield',
+    stacking: 'stack_add',
+    maxStacks: 10,
+    resistible: false,
+    tags: ['shield', 'defensive', 'absorption'],
+    icon: 'ðŸ›¡ï¸',
+    color: '#0ea5e9',
+  },
+  {
+    id: 'barrier',
+    name: 'Magic Barrier',
+    description: 'Absorbs magical damage only.',
+    category: 'shield',
+    stacking: 'stack_add',
+    maxStacks: 5,
+    resistible: false,
+    tags: ['shield', 'magic', 'defensive', 'absorption'],
+    icon: 'âœ¨',
+    color: '#a855f7',
+  },
+
+  // â”€â”€â”€ UTILITY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  {
+    id: 'resource_regen',
+    name: 'Focus',
+    description: 'Restores resource/energy over time.',
+    category: 'utility',
+    stacking: 'refresh',
+    maxStacks: 3,
+    tickInterval: 1,
+    resistible: false,
+    tags: ['utility', 'resource', 'regen'],
+    icon: 'ðŸ’™',
+    color: '#3b82f6',
+  },
+  {
+    id: 'resource_drain',
+    name: 'Drain',
+    description: 'Drains resource/energy over time.',
+    category: 'utility',
+    stacking: 'stack_add',
+    maxStacks: 5,
+    tickInterval: 1,
+    resistible: true,
+    tags: ['utility', 'resource', 'drain'],
+    icon: 'ðŸ’œ',
+    color: '#a855f7',
+  },
+];
+
+// â”€â”€â”€ LOOKUP MAPS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+export const EFFECT_DEFINITION_BY_ID: Record<EffectType, EffectDefinition> =
+  Object.fromEntries(EFFECT_DEFINITIONS.map((d) => [d.id, d])) as Record<
+    EffectType,
+    EffectDefinition
+  >;
+
+export const EFFECTS_BY_CATEGORY: Record<EffectCategory, EffectDefinition[]> = {
+  damage_over_time: EFFECT_DEFINITIONS.filter((d) => d.category === 'damage_over_time'),
+  healing_over_time: EFFECT_DEFINITIONS.filter((d) => d.category === 'healing_over_time'),
+  buff: EFFECT_DEFINITIONS.filter((d) => d.category === 'buff'),
+  debuff: EFFECT_DEFINITIONS.filter((d) => d.category === 'debuff'),
+  stun: EFFECT_DEFINITIONS.filter((d) => d.category === 'stun'),
+  shield: EFFECT_DEFINITIONS.filter((d) => d.category === 'shield'),
+  utility: EFFECT_DEFINITIONS.filter((d) => d.category === 'utility'),
+};
+
+// â”€â”€â”€ EFFECT PRESETS (for abilities/items to reference) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+// Common preset configurations that abilities/items can use
+export const EFFECT_PRESETS: EffectPreset[] = [
+  // DoT presets
+  { id: 'bleed', baseIntensity: 3, baseDuration: 3, chance: 0.3, stacking: 'stack_add', maxStacks: 5, tags: ['physical'] },
+  { id: 'burn', baseIntensity: 8, baseDuration: 2, chance: 0.25, stacking: 'refresh', maxStacks: 3, tags: ['fire'] },
+  { id: 'poison', baseIntensity: 2, baseDuration: 6, chance: 0.2, stacking: 'stack_add', maxStacks: 10, tags: ['nature'] },
+
+  // HoT presets
+  { id: 'regeneration', baseIntensity: 10, baseDuration: 4, chance: 1.0, stacking: 'refresh', maxStacks: 3, resistible: false },
+
+  // Buff presets
+  { id: 'accuracy_buff', baseIntensity: 5, baseDuration: 3, chance: 1.0, resistible: false },
+  { id: 'evasion_buff', baseIntensity: 5, baseDuration: 3, chance: 1.0, resistible: false },
+  { id: 'critical_buff', baseIntensity: 8, baseDuration: 3, chance: 1.0, resistible: false },
+  { id: 'damage_buff', baseIntensity: 10, baseDuration: 3, chance: 1.0, resistible: false },
+  { id: 'defense_buff', baseIntensity: 15, baseDuration: 3, chance: 1.0, resistible: false },
+  { id: 'speed_buff', baseIntensity: 0.15, baseDuration: 3, chance: 1.0, resistible: false },
+
+  // Debuff presets
+  { id: 'slow', baseIntensity: 0.2, baseDuration: 3, chance: 0.4, stacking: 'stack_add', maxStacks: 5 },
+  { id: 'armor_reduction', baseIntensity: 5, baseDuration: 4, chance: 0.3, stacking: 'stack_add', maxStacks: 10 },
+  { id: 'accuracy_reduction', baseIntensity: 15, baseDuration: 2, chance: 0.3, stacking: 'refresh', maxStacks: 3 },
+  { id: 'evasion_reduction', baseIntensity: 15, baseDuration: 3, chance: 0.3, stacking: 'refresh', maxStacks: 3 },
+
+  // Control presets
+  { id: 'stun', baseIntensity: 1, baseDuration: 1, chance: 0.2, stacking: 'refresh', maxStacks: 1 },
+  { id: 'root', baseIntensity: 1, baseDuration: 2, chance: 0.25, stacking: 'refresh', maxStacks: 1 },
+  { id: 'silence', baseIntensity: 1, baseDuration: 2, chance: 0.2, stacking: 'refresh', maxStacks: 1 },
+
+  // Shield presets
+  { id: 'shield', baseIntensity: 50, baseDuration: 3, chance: 1.0, stacking: 'stack_add', maxStacks: 10, resistible: false },
+  { id: 'barrier', baseIntensity: 40, baseDuration: 3, chance: 1.0, stacking: 'stack_add', maxStacks: 5, resistible: false },
+
+  // Utility presets
+  { id: 'resource_regen', baseIntensity: 5, baseDuration: 4, chance: 1.0, resistible: false },
+  { id: 'resource_drain', baseIntensity: 3, baseDuration: 3, chance: 0.3, stacking: 'stack_add', maxStacks: 5 },
+];
+
+export const EFFECT_PRESET_BY_ID: Record<EffectType, EffectPreset> =
+  Object.fromEntries(EFFECT_PRESETS.map((p) => [p.id, p])) as Record<EffectType, EffectPreset>;
+
+export type { EffectType, EffectCategory, EffectStackingRule, EffectDefinition, EffectPreset };
