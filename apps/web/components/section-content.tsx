@@ -25,6 +25,7 @@ import { SkillPanel } from '@/components/SkillPanel';
 import { ActivitiesSection } from '@/components/activity/ActivitiesSection';
 import { ShopSection } from '@/components/ShopSection';
 import { DungeonsSection } from '@/components/DungeonsSection';
+import { MarketplaceSection } from '@/components/MarketplaceSection';
 import { getPlayerClass } from '@/lib/classes';
 import { assetPath } from '@/lib/asset-path';
 import { APP_VERSION_LABEL } from '@/lib/version';
@@ -853,6 +854,7 @@ export function SectionContent({ section }: { section: SectionId }) {
     case 'achievements': return <AchievementsSection />;
     case 'dungeons': return <DungeonsSection />;
     case 'shop': return <ShopSection />;
+    case 'marketplace': return <MarketplaceSection />;
     case 'settings': return <SettingsSection />;
     default: return <PlaceholderSection id={section} />;
   }

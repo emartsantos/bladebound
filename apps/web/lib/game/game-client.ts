@@ -1,5 +1,6 @@
 import type { SkillId, EquipmentSlot } from '@premium-rpg/shared-types';
 import type { GameState } from './service';
+import type { MarketplaceAssetType } from '@/lib/persistence/game-persistence';
 
 /**
  * The Game Client boundary — the single seam the React UI talks through for
@@ -44,6 +45,9 @@ export interface GameClient {
 
   buyShopItem(shopItemId: string): void;
   sellItem(itemId: string): void;
+  createMarketplaceListing(assetType: MarketplaceAssetType, assetId: string, price: number): void;
+  cancelMarketplaceListing(listingId: string): void;
+  buyMarketplaceListing(listingId: string): void;
 
   startDungeon(dungeonId: string): void;
   dungeonFight(): void;

@@ -17,7 +17,7 @@ import {
   LuScrollText, LuClipboardList, LuBookMarked, LuTrophy, LuShoppingBag, LuSettings,
   LuBell, LuChevronLeft, LuMenu, LuX, LuCoins, LuHeart, LuCrown, LuChevronDown,
   LuLogOut, LuGauge, LuCompass, LuFlameKindling,
-  LuHistory,
+  LuHistory, LuStore,
 } from 'react-icons/lu';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Dropdown } from '@/components/ui/dropdown';
@@ -52,6 +52,7 @@ const NAV_ICONS: Record<SectionId, IconType> = {
   collections: LuBookMarked,
   achievements: LuTrophy,
   shop: LuShoppingBag,
+  marketplace: LuStore,
   settings: LuSettings,
 };
 
@@ -70,6 +71,7 @@ const NAV_ENTRIES: Record<SectionId, NavEntry> = {
   collections: { id: 'collections', icon: LuBookMarked, description: 'Codex and completions' },
   achievements: { id: 'achievements', icon: LuTrophy, description: 'Milestones and rewards' },
   shop: { id: 'shop', icon: LuShoppingBag, description: 'Store and economy' },
+  marketplace: { id: 'marketplace', icon: LuStore, description: 'Trade heroes and weapons for BHC' },
   settings: { id: 'settings', icon: LuSettings, description: 'Preferences and account' },
 };
 

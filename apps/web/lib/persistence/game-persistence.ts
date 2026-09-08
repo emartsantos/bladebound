@@ -1,7 +1,7 @@
 import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, PlayerTaskState, PlayerQuestState, PlayerAchievementState, PlayerCollectionState, BestiaryState } from '@premium-rpg/shared-types';
 import type { ActiveAction, QueuedAction } from '@/lib/game/service';
 
-export const GAME_SAVE_SCHEMA_VERSION = 5;
+export const GAME_SAVE_SCHEMA_VERSION = 6;
 
 export interface RetentionMail {
   id: string;
@@ -73,6 +73,43 @@ export interface InvestmentState {
   history: InvestmentRecord[];
 }
 
+export type MarketplaceAssetType = 'hero' | 'weapon';
+export type MarketplaceListingStatus = 'active' | 'sold' | 'cancelled';
+
+export interface MarketplaceListing {
+  id: string;
+  idempotencyKey: string;
+  sellerId: string;
+  sellerName: string;
+  assetType: MarketplaceAssetType;
+  assetId: string;
+  title: string;
+  price: number;
+  listingFee: number;
+  snapshot: Record<string, unknown>;
+  status: MarketplaceListingStatus;
+  buyerId: string | null;
+  createdAt: number;
+  completedAt: number | null;
+}
+
+export interface MarketplaceHistoryEntry {
+  id: string;
+  listingId: string;
+  type: 'listed' | 'cancelled' | 'purchased' | 'sold';
+  label: string;
+  amount: number;
+  createdAt: number;
+}
+
+export interface MarketplaceState {
+  listingFee: number;
+  listings: MarketplaceListing[];
+  history: MarketplaceHistoryEntry[];
+  acquiredHeroes: Array<Record<string, unknown>>;
+  heroLocked: boolean;
+}
+
 /**
  * The authoritative fields of a game save. Carried by every persistence
  * implementation; clients never write this shape directly except through a
@@ -111,6 +148,7 @@ export interface GameSaveData {
   bestiary?: BestiaryState;
   retention?: RetentionState;
   investment?: InvestmentState;
+  marketplace?: MarketplaceState;
 }
 
 /** Upgrade older browser/cloud saves without discarding valid zero balances. */

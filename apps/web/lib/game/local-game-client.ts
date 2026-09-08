@@ -5,6 +5,7 @@ import type { GameClient } from './game-client';
 import type { GamePersistence } from '@/lib/persistence/game-persistence';
 import type { GameState, SeedConfig } from './service';
 import type { EconomyTransaction } from '@/lib/persistence/game-persistence';
+import type { MarketplaceAssetType } from '@/lib/persistence/game-persistence';
 import {
   TICK_MS,
   mergeSeed,
@@ -39,6 +40,9 @@ import {
   reduceRerollWeapon,
   reduceRebirthHero,
   reduceReforgeHero,
+  reduceCreateMarketplaceListing,
+  reduceCancelMarketplaceListing,
+  reduceBuyMarketplaceListing,
 } from './service';
 
 /**
@@ -81,8 +85,11 @@ export class LocalGameClient implements GameClient {
   // ---- private ----
 
   private applyTick(): void {
+    if (this.state.marketplace.heroLocked) return;
     this.setState(tick(this.state, Date.now()), 'gameplay');
   }
+
+  private heroAvailable(): boolean { return !this.state.marketplace.heroLocked; }
 
   private setState(next: GameState, reason = 'system'): void {
     if (next === this.state) return;
@@ -125,6 +132,7 @@ export class LocalGameClient implements GameClient {
   // ---- gathering / crafting ----
 
   startAction(skill: SkillId, id: string, kind: 'gathering' | 'crafting', repetitions = 1): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceStartAction(this.state, skill, id, kind, repetitions), `${kind}_queued`);
   }
 
@@ -145,14 +153,17 @@ export class LocalGameClient implements GameClient {
   }
 
   claimTask(taskId: string): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceClaimTask(this.state, taskId), 'task_reward');
   }
 
   rerollTask(group: 'daily' | 'weekly', index: number): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceRerollTask(this.state, group, index), 'task_reroll');
   }
 
   claimMail(mailId: string): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceClaimMail(this.state, mailId), 'mail_reward');
   }
 
@@ -167,18 +178,22 @@ export class LocalGameClient implements GameClient {
   }
 
   fight(): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceFight(this.state), 'combat');
   }
 
   toggleAutoFight(): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceToggleAutoFight(this.state));
   }
 
   toggleRest(): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceToggleRest(this.state));
   }
 
   eatFood(): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceEatFood(this.state), 'consume_item');
   }
 
@@ -189,40 +204,61 @@ export class LocalGameClient implements GameClient {
   // ---- inventory / equipment ----
 
   repairAll(): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceRepairAll(this.state), 'equipment_repair');
   }
 
   equipItem(slot: EquipmentSlot, itemId: string): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceEquipItem(this.state, slot, itemId));
   }
 
   unequipItem(slot: EquipmentSlot): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceUnequipItem(this.state, slot));
   }
 
-  forgeWeapon(): void { this.setState(reduceForgeWeapon(this.state), 'weapon_forge'); }
-  awakenWeapon(): void { this.setState(reduceAwakenWeapon(this.state), 'weapon_awaken'); }
-  rerollWeapon(): void { this.setState(reduceRerollWeapon(this.state), 'weapon_reroll'); }
-  rebirthHero(): void { this.setState(reduceRebirthHero(this.state), 'hero_rebirth'); }
-  reforgeHero(): void { this.setState(reduceReforgeHero(this.state), 'hero_reforge'); }
+  forgeWeapon(): void { if (this.heroAvailable()) this.setState(reduceForgeWeapon(this.state), 'weapon_forge'); }
+  awakenWeapon(): void { if (this.heroAvailable()) this.setState(reduceAwakenWeapon(this.state), 'weapon_awaken'); }
+  rerollWeapon(): void { if (this.heroAvailable()) this.setState(reduceRerollWeapon(this.state), 'weapon_reroll'); }
+  rebirthHero(): void { if (this.heroAvailable()) this.setState(reduceRebirthHero(this.state), 'hero_rebirth'); }
+  reforgeHero(): void { if (this.heroAvailable()) this.setState(reduceReforgeHero(this.state), 'hero_reforge'); }
 
   // ---- economy (shop) ----
 
   buyShopItem(shopItemId: string): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceShopBuy(this.state, shopItemId), 'shop_purchase');
   }
 
   sellItem(itemId: string): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceShopSell(this.state, itemId), 'shop_sale');
+  }
+
+  createMarketplaceListing(assetType: MarketplaceAssetType, assetId: string, price: number): void {
+    const key = `listing:${this.config.playerId}:${assetType}:${assetId}:${Date.now()}`;
+    this.setState(reduceCreateMarketplaceListing(this.state, this.config.playerId, assetType, assetId, price, key), 'marketplace_listing');
+  }
+
+  cancelMarketplaceListing(listingId: string): void {
+    this.setState(reduceCancelMarketplaceListing(this.state, this.config.playerId, listingId), 'marketplace_cancel');
+  }
+
+  buyMarketplaceListing(listingId: string): void {
+    const key = `purchase:${this.config.playerId}:${listingId}:${Date.now()}`;
+    this.setState(reduceBuyMarketplaceListing(this.state, this.config.playerId, listingId, key), 'marketplace_purchase');
   }
 
   // ---- dungeons ----
 
   startDungeon(dungeonId: string): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceDungeonEnter(this.state, dungeonId), 'dungeon_entry');
   }
 
   dungeonFight(): void {
+    if (!this.heroAvailable()) return;
     this.setState(reduceDungeonFight(this.state), 'dungeon_combat');
   }
 
