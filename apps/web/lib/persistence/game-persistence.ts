@@ -1,4 +1,5 @@
 import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState } from '@premium-rpg/shared-types';
+import type { ActiveAction, QueuedAction } from '@/lib/game/service';
 
 /**
  * The authoritative fields of a game save. Carried by every persistence
@@ -15,6 +16,9 @@ export interface GameSaveData {
   combatXp: number;
   combatLevel: number;
   selectedSkill: SkillId;
+  /** In-progress trade action and its FIFO queue. */
+  activeAction?: ActiveAction | null;
+  actionQueue?: QueuedAction[];
   /** Per-save shop purchase ledger (finite stock / one-time tracking). */
   shopBought?: Record<string, number>;
   /** Dungeon progress + any active run. */

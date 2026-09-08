@@ -11,6 +11,8 @@ import {
   gameToSaveData,
   reduceStartAction,
   reduceStopAction,
+  reduceRemoveQueuedAction,
+  reduceClearActionQueue,
   reduceClearActionLog,
   reduceSetSelectedSkill,
   reduceSetCombatTarget,
@@ -87,6 +89,14 @@ export class LocalGameClient implements GameClient {
 
   stopAction(): void {
     this.setState(reduceStopAction(this.state));
+  }
+
+  removeQueuedAction(index: number): void {
+    this.setState(reduceRemoveQueuedAction(this.state, index));
+  }
+
+  clearActionQueue(): void {
+    this.setState(reduceClearActionQueue(this.state));
   }
 
   clearActionLog(): void {

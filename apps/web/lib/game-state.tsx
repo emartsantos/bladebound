@@ -11,7 +11,7 @@ import type { SkillId, FoodItem, BaseStats, EquipmentSlot } from '@premium-rpg/s
 import type { GameClient } from './game/game-client';
 import { LocalGameClient } from './game/local-game-client';
 import { mergeSeed, xpStepForLevel } from './game/service';
-import type { GameState, ActiveAction, ActionLogEntry, GainFeed, CombatView, SkillView } from './game/service';
+import type { GameState, ActiveAction, QueuedAction, ActionLogEntry, GainFeed, CombatView, SkillView } from './game/service';
 import { levelForXp } from '@premium-rpg/game-engine';
 import { usePlayer } from './use-player';
 import { baseStatsForLevel, cumulativeXpForLevel } from './player-summary';
@@ -19,7 +19,7 @@ import { itemName, itemHeal } from './item-names';
 import { useNotifications } from '@/components/ui/notification';
 import { localGamePersistence } from '@/lib/persistence/local-game-persistence';
 
-export type { GameState, ActiveAction, ActionLogEntry, GainFeed, CombatView, SkillView };
+export type { GameState, ActiveAction, QueuedAction, ActionLogEntry, GainFeed, CombatView, SkillView };
 
 export interface GameContextValue {
   state: GameState;
@@ -30,6 +30,8 @@ export interface GameContextValue {
   foods: FoodItem[];
   startAction: (skill: SkillId, id: string, kind: 'gathering' | 'crafting') => void;
   stopAction: () => void;
+  removeQueuedAction: (index: number) => void;
+  clearActionQueue: () => void;
   clearActionLog: () => void;
   setSelectedSkill: (skill: SkillId) => void;
   setCombatTarget: (regionId: string, enemyId: string) => void;
@@ -139,6 +141,8 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
 
   const startAction = useCallback((skill: SkillId, id: string, kind: 'gathering' | 'crafting') => run((c) => c.startAction(skill, id, kind)), [run]);
   const stopAction = useCallback(() => run((c) => c.stopAction()), [run]);
+  const removeQueuedAction = useCallback((index: number) => run((c) => c.removeQueuedAction(index)), [run]);
+  const clearActionQueue = useCallback(() => run((c) => c.clearActionQueue()), [run]);
   const clearActionLog = useCallback(() => run((c) => c.clearActionLog()), [run]);
   const setSelectedSkill = useCallback((skill: SkillId) => run((c) => c.setSelectedSkill(skill)), [run]);
   const setCombatTarget = useCallback((regionId: string, enemyId: string) => run((c) => c.setCombatTarget(regionId, enemyId)), [run]);
@@ -174,6 +178,8 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
         foods,
         startAction,
         stopAction,
+        removeQueuedAction,
+        clearActionQueue,
         clearActionLog,
         setSelectedSkill,
         setCombatTarget,

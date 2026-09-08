@@ -22,6 +22,8 @@ import {
   shopSellPrice,
   gameToSaveData,
   xpStepForLevel,
+  MAX_ACTION_QUEUE,
+  reduceRemoveQueuedAction,
 } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { levelForXp } from '@premium-rpg/game-engine';
@@ -55,6 +57,46 @@ const emptySlots = (): EquipmentSlots => ({
   amulet: null,
   ring: null,
   cape: null,
+});
+
+describe('trade action queue', () => {
+  it('queues actions FIFO and advances after the current action completes', () => {
+    const base = mergeSeed(makeConfig());
+    const mining = reduceStartAction(base, 'mining', 'copper_vein', 'gathering');
+    const queued = reduceStartAction(mining, 'woodcutting', 'regular_tree', 'gathering');
+
+    expect(queued.activeAction?.skill).toBe('mining');
+    expect(queued.actionQueue).toHaveLength(1);
+    expect(queued.actionQueue[0].nodeId).toBe('regular_tree');
+
+    const advanced = tick(queued, queued.activeAction!.startTime + queued.activeAction!.duration + 1);
+    expect(advanced.activeAction?.skill).toBe('woodcutting');
+    expect(advanced.activeAction?.nodeId).toBe('regular_tree');
+    expect(advanced.actionQueue).toHaveLength(0);
+  });
+
+  it('caps pending trade actions at ten and supports removing one', () => {
+    const base = reduceStartAction(mergeSeed(makeConfig()), 'mining', 'copper_vein', 'gathering');
+    let state = base;
+    for (let i = 0; i < MAX_ACTION_QUEUE + 3; i += 1) {
+      state = reduceStartAction(state, 'mining', 'copper_vein', 'gathering');
+    }
+    expect(state.actionQueue).toHaveLength(MAX_ACTION_QUEUE);
+
+    const shortened = reduceRemoveQueuedAction(state, 4);
+    expect(shortened.actionQueue).toHaveLength(MAX_ACTION_QUEUE - 1);
+  });
+
+  it('persists the current action and queue across reloads', () => {
+    const persistence = new MemoryPersistence();
+    let state = reduceStartAction(mergeSeed(makeConfig({ persistence })), 'mining', 'copper_vein', 'gathering');
+    state = reduceStartAction(state, 'woodcutting', 'regular_tree', 'gathering');
+    persistence.save('p-test', gameToSaveData(state));
+
+    const reloaded = mergeSeed(makeConfig({ persistence }));
+    expect(reloaded.activeAction?.nodeId).toBe('copper_vein');
+    expect(reloaded.actionQueue[0]?.nodeId).toBe('regular_tree');
+  });
 });
 
 const baseSkills = (): Record<SkillId, { level: number; xp: number }> =>

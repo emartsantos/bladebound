@@ -17,6 +17,8 @@ export interface GameClient {
 
   startAction(skill: SkillId, id: string, kind: 'gathering' | 'crafting'): void;
   stopAction(): void;
+  removeQueuedAction(index: number): void;
+  clearActionQueue(): void;
   clearActionLog(): void;
   setSelectedSkill(skill: SkillId): void;
 

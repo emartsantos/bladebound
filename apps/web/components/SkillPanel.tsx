@@ -8,6 +8,7 @@ import { skillLabel, actionsForSkill, formatDuration, type ActionIngredient } fr
 import { SkillIcon } from '@/components/game/icons';
 import { SectionHeader, Panel, PanelLabel, Bar, BarLabel, GameButton, EmptyState } from '@/components/game/primitives';
 import { IngredientChip } from './activity/IngredientChip';
+import { ActionQueue } from './ActionQueue';
 
 const SKILL_COPY: Partial<Record<SkillId, string>> = {
   mining: 'Extract ores from veins. Ores power smelting and smithing.',
@@ -56,6 +57,8 @@ export function SkillPanel() {
         </div>
       </Panel>
 
+      <ActionQueue />
+
       {/* Actions */}
       <div className="space-y-2">
         {actions.map((row) => {
@@ -102,8 +105,8 @@ export function SkillPanel() {
                       <LuSquare className="h-3 w-3" /> Stop
                     </GameButton>
                   ) : (
-                    <GameButton variant="primary" disabled={row.locked} onClick={() => startAction(skill, row.id, row.kind)}>
-                      <LuPlay className="h-3 w-3" /> Start
+                    <GameButton variant="primary" disabled={row.locked || state.actionQueue.length >= 10} onClick={() => startAction(skill, row.id, row.kind)}>
+                      <LuPlay className="h-3 w-3" /> {active ? 'Queue' : 'Start'}
                     </GameButton>
                   )}
                 </div>

@@ -69,6 +69,7 @@ import type { DungeonCombatSlice } from '@/lib/persistence/game-persistence';
 export const TICK_MS = 250;
 export const AUTO_FIGHT_GAP_MS = 1100;
 export const REST_HEAL_FRACTION = 0.02; // of max HP per second
+export const MAX_ACTION_QUEUE = 10;
 
 // Starter satchel for a brand-new save (no save file yet). Enough ore to try
 // mining + the Forge pipeline and a first alchemy brew, so new hunters aren't
@@ -93,6 +94,8 @@ export interface ActiveAction {
   startTime: number;
   duration: number;
 }
+
+export type QueuedAction = Pick<ActiveAction, 'kind' | 'skill' | 'nodeId' | 'recipeId'>;
 
 export interface ActionLogEntry {
   id: number;
@@ -135,6 +138,7 @@ export interface GameState {
   durability: Record<string, number>;
   equipment: EquipmentSlots;
   activeAction: ActiveAction | null;
+  actionQueue: QueuedAction[];
   actionLog: ActionLogEntry[];
   gains: GainFeed[];
   combat: CombatView;
@@ -241,7 +245,8 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     inventory: needsStarterSatchel(save) ? { ...STARTING_SATCHEL } : (save?.inventory ?? {}),
     durability: save?.durability ?? {},
     equipment: save?.equipment ?? emptyEquipment(),
-    activeAction: null,
+    activeAction: save?.activeAction ?? null,
+    actionQueue: (save?.actionQueue ?? []).slice(0, MAX_ACTION_QUEUE),
     actionLog: [],
     gains: [],
     combatXp: save?.combatXp ?? 0,
@@ -312,6 +317,8 @@ export function gameToSaveData(state: GameState): GameSaveData {
     combatXp: state.combatXp,
     combatLevel: state.combatLevel,
     selectedSkill: state.selectedSkill,
+    activeAction: state.activeAction,
+    actionQueue: state.actionQueue,
     shopBought: state.shopBought,
     dungeon: state.dungeon,
     dungeonCombat: state.dungeonCombat,
@@ -396,7 +403,7 @@ export function tick(prev: GameState, now: number): GameState {
       if (action.kind === 'gathering' && action.nodeId) {
         const node = getNodesForSkill(action.skill as SkillName).find((n) => n.id === action.nodeId);
         if (!node) {
-          state = { ...state, activeAction: null };
+          state = { ...state, activeAction: null, actionQueue: [] };
         } else {
           const currentLevel = levelForXp(state.skills[action.skill]);
           const tool = getBestTool(action.skill as SkillName, currentLevel);
@@ -423,34 +430,30 @@ export function tick(prev: GameState, now: number): GameState {
           }
           const newTool = getBestTool(action.skill as SkillName, grow.newLevel);
           const duration = Math.floor(node.baseDuration / (newTool ? newTool.bonus.speedMultiplier : 1));
+          const advanced = { ...state, skills: { ...state.skills, [action.skill]: grow.newXp }, inventory };
           state = {
-            ...state,
-            skills: { ...state.skills, [action.skill]: grow.newXp },
-            inventory,
+            ...advanced,
             gains: pushGains(state.gains, gains),
             actionLog: pushActionLog(state.actionLog, [
               { skill: action.skill, text: `${itemName(node.id)} → ${reward.xpGained} XP`, rare: false },
             ]),
-            activeAction: {
-              kind: 'gathering',
-              skill: action.skill,
-              nodeId: node.id,
-              toolId: newTool?.id ?? null,
-              startTime: now,
-              duration,
-            },
+            ...nextActionState(advanced, {
+              kind: 'gathering', skill: action.skill, nodeId: node.id,
+              toolId: newTool?.id ?? null, startTime: now, duration,
+            }, now),
           };
         }
       } else if (action.kind === 'crafting' && action.recipeId) {
         const recipe = getRecipeById(action.recipeId);
         if (!recipe) {
-          state = { ...state, activeAction: null };
+          state = { ...state, activeAction: null, actionQueue: [] };
         } else {
           const check = hasIngredients(recipe, state.inventory);
           if (!check.canCraft) {
             state = {
               ...state,
               activeAction: null,
+              actionQueue: [],
               actionLog: pushActionLog(state.actionLog, [
                 { skill: action.skill, text: `Stopped ${recipe.name}: missing ingredients`, rare: false },
               ]),
@@ -479,19 +482,15 @@ export function tick(prev: GameState, now: number): GameState {
             if (grow.levelsGained > 0) {
               gains.push({ id: nextId(), text: `${recipe.name} — ${action.skill} level ${grow.newLevel}!`, kind: 'level' });
             }
+            const advanced = { ...state, skills: { ...state.skills, [action.skill]: grow.newXp }, inventory };
             state = {
-              ...state,
-              skills: { ...state.skills, [action.skill]: grow.newXp },
-              inventory,
+              ...advanced,
               gains: pushGains(state.gains, gains),
               actionLog: pushActionLog(state.actionLog, [{ skill: action.skill, text: `${recipe.name} crafted`, rare: false }]),
-              activeAction: {
-                kind: 'crafting',
-                skill: action.skill,
-                recipeId: recipe.id,
-                startTime: now,
-                duration: recipe.duration,
-              },
+              ...nextActionState(advanced, {
+                kind: 'crafting', skill: action.skill, recipeId: recipe.id,
+                startTime: now, duration: recipe.duration,
+              }, now),
             };
           }
         }
@@ -617,6 +616,34 @@ export function tick(prev: GameState, now: number): GameState {
 
 // ---- Action reducers (pure state transitions) ----
 
+function activateQueuedAction(prev: GameState, queued: QueuedAction, now: number): ActiveAction | null {
+  if (queued.kind === 'gathering' && queued.nodeId) {
+    const node = getNodesForSkill(queued.skill as SkillName).find((n) => n.id === queued.nodeId);
+    if (!node) return null;
+    const tool = getBestTool(queued.skill as SkillName, levelForXp(prev.skills[queued.skill]));
+    return {
+      ...queued,
+      toolId: tool?.id ?? null,
+      startTime: now,
+      duration: Math.floor(node.baseDuration / (tool ? tool.bonus.speedMultiplier : 1)),
+    };
+  }
+  if (queued.kind === 'crafting' && queued.recipeId) {
+    const recipe = getRecipeById(queued.recipeId);
+    if (!recipe || !hasIngredients(recipe, prev.inventory).canCraft) return null;
+    return { ...queued, startTime: now, duration: recipe.duration };
+  }
+  return null;
+}
+
+/** Advance FIFO after one completion; otherwise retain the existing repeat behavior. */
+function nextActionState(prev: GameState, repeat: ActiveAction, now: number): Pick<GameState, 'activeAction' | 'actionQueue'> {
+  if (prev.actionQueue.length === 0) return { activeAction: repeat, actionQueue: [] };
+  const [next, ...rest] = prev.actionQueue;
+  const activeAction = activateQueuedAction(prev, next, now);
+  return activeAction ? { activeAction, actionQueue: rest } : { activeAction: null, actionQueue: [] };
+}
+
 export function reduceStartAction(
   prev: GameState,
   skill: SkillId,
@@ -624,20 +651,22 @@ export function reduceStartAction(
   kind: 'gathering' | 'crafting',
 ): GameState {
   const now = Date.now();
-  if (kind === 'gathering') {
-    const node = getNodesForSkill(skill as SkillName).find((n) => n.id === id);
-    if (!node) return prev;
-    const level = levelForXp(prev.skills[skill]);
-    const tool = getBestTool(skill as SkillName, level);
-    const duration = Math.floor(node.baseDuration / (tool ? tool.bonus.speedMultiplier : 1));
-    return { ...prev, activeAction: { kind, skill, nodeId: node.id, toolId: tool?.id ?? null, startTime: now, duration } };
-  }
-  const recipe = getRecipeById(id);
-  if (!recipe) return prev;
-  return { ...prev, activeAction: { kind, skill, recipeId: recipe.id, startTime: now, duration: recipe.duration } };
+  const queued: QueuedAction = kind === 'gathering'
+    ? { kind, skill, nodeId: id }
+    : { kind, skill, recipeId: id };
+  const candidate = activateQueuedAction(prev, queued, now);
+  if (!candidate) return prev;
+  if (!prev.activeAction) return { ...prev, activeAction: candidate };
+  if (prev.actionQueue.length >= MAX_ACTION_QUEUE) return prev;
+  return { ...prev, actionQueue: [...prev.actionQueue, queued] };
 }
 
-export const reduceStopAction = (prev: GameState): GameState => ({ ...prev, activeAction: null });
+export const reduceStopAction = (prev: GameState): GameState => ({ ...prev, activeAction: null, actionQueue: [] });
+export const reduceRemoveQueuedAction = (prev: GameState, index: number): GameState => ({
+  ...prev,
+  actionQueue: prev.actionQueue.filter((_, i) => i !== index),
+});
+export const reduceClearActionQueue = (prev: GameState): GameState => ({ ...prev, actionQueue: [] });
 export const reduceClearActionLog = (prev: GameState): GameState => ({ ...prev, actionLog: [] });
 export const reduceSetSelectedSkill = (prev: GameState, skill: SkillId): GameState => ({ ...prev, selectedSkill: skill });
 export const reduceClearCombatLog = (prev: GameState): GameState => ({

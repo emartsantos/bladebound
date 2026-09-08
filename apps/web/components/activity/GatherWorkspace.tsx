@@ -10,6 +10,7 @@ import { useGame } from '@/lib/game-state';
 import { actionsForSkill, skillLabel, SKILL_ICONS, forgeRows, type ActionRow } from '@/lib/skills-meta';
 import { Bar } from '@/components/game/primitives';
 import { IngredientChip } from './IngredientChip';
+import { ActionQueue } from '@/components/ActionQueue';
 import { useNow } from './useNow';
 import type { ActivityConfig, ActivityId } from './activity-config';
 
@@ -67,6 +68,8 @@ export function GatherWorkspace({ skill, activity, onNavigateActivity }: { skill
           )}
         </div>
 
+        <ActionQueue />
+
         {/* Action list */}
         <div className="space-y-2">
           {rows.map((row, i) => {
@@ -83,6 +86,8 @@ export function GatherWorkspace({ skill, activity, onNavigateActivity }: { skill
                   row={row}
                   skill={skill}
                   active={isActive}
+                  queueing={Boolean(state.activeAction)}
+                  queueFull={state.actionQueue.length >= 10}
                   inventory={state.inventory}
                   hasIngredients={hasIngredients(row)}
                   onNavigateActivity={onNavigateActivity}
@@ -130,6 +135,8 @@ function ActionRowCard({
   row,
   skill,
   active,
+  queueing,
+  queueFull,
   inventory,
   hasIngredients,
   onNavigateActivity,
@@ -139,6 +146,8 @@ function ActionRowCard({
   row: ActionRow;
   skill: SkillId;
   active: boolean;
+  queueing: boolean;
+  queueFull: boolean;
   inventory: Record<string, number>;
   hasIngredients: boolean;
   onNavigateActivity: (id: ActivityId) => void;
@@ -147,7 +156,7 @@ function ActionRowCard({
 }) {
   const SkillIcon = SKILL_ICONS[skill];
   const locked = row.locked;
-  const blocked = locked || !hasIngredients;
+  const blocked = locked || !hasIngredients || (!active && queueFull);
   return (
     <div
       className={`rounded-sm border p-3 transition-colors ${
@@ -185,7 +194,7 @@ function ActionRowCard({
           className="btn btn-secondary h-7 shrink-0 px-2.5 font-mono text-[10px]"
         >
           {active ? <LuX className="h-3 w-3" /> : <LuArrowRight className="h-3 w-3" />}
-          {active ? 'Stop' : 'Do'}
+          {active ? 'Stop' : queueing ? 'Queue' : 'Do'}
         </button>
       </div>
 
