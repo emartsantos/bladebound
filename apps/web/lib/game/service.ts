@@ -21,6 +21,8 @@ import type {
   EnemyDefinition,
   DungeonModifier,
   ShopItemDefinition,
+  PlayerTaskState,
+  QuestEvent,
 } from '@premium-rpg/shared-types';
 import {
   getNodesForSkill,
@@ -49,6 +51,11 @@ import {
   selectWeightedEntries,
   BASE_XP,
   XP_GROWTH,
+  createTaskState,
+  ensureCurrentTasks,
+  processTaskEvent,
+  claimTask,
+  getCurrentTasks,
   type SkillName,
 } from '@premium-rpg/game-engine';
 import {
@@ -60,6 +67,9 @@ import {
   PRESTIGE_STOCK,
   ECONOMY_COST_MODEL,
   DUNGEON_REWARD_TABLES,
+  ALL_TASKS,
+  TASK_BY_ID,
+  DEFAULT_TASK_SELECTION,
 } from '@premium-rpg/game-data';
 import { baseStatsForLevel, cumulativeXpForLevel } from '@/lib/player-summary';
 import { itemName, itemHeal } from '@/lib/item-names';
@@ -151,6 +161,8 @@ export interface GameState {
   dungeon: PlayerDungeonState;
   /** Transient encounter for the active dungeon fight (isolated from open-world combat). */
   dungeonCombat: DungeonCombatSlice;
+  /** Persisted daily and weekly task assignments and progress. */
+  task: PlayerTaskState;
 }
 
 export interface SkillView {
@@ -228,6 +240,8 @@ export type SeedConfig = {
 
 export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>): GameState {
   const save = config.persistence.load(config.playerId);
+  const task = cloneTaskState(save?.task ?? createTaskState());
+  ensureCurrentTasks(task, ALL_TASKS, DEFAULT_TASK_SELECTION, new Date(), save?.combatLevel ?? 1);
   return {
     playerName: '',
     skills: {
@@ -271,6 +285,7 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     shopBought: save?.shopBought ?? {},
     dungeon: save?.dungeon ?? emptyDungeonState(),
     dungeonCombat: save?.dungeonCombat ?? EMPTY_DUNGEON_COMBAT,
+    task,
   };
 }
 
@@ -322,7 +337,33 @@ export function gameToSaveData(state: GameState): GameSaveData {
     shopBought: state.shopBought,
     dungeon: state.dungeon,
     dungeonCombat: state.dungeonCombat,
+    task: state.task,
   };
+}
+
+function cloneTaskState(task: PlayerTaskState): PlayerTaskState {
+  const cloneAssignments = (sets: Record<string, import('@premium-rpg/shared-types').TaskAssignment[]>) =>
+    Object.fromEntries(Object.entries(sets).map(([key, assignments]) => [key, assignments.map((a) => ({ ...a }))]));
+  return {
+    daily: cloneAssignments(task.daily),
+    weekly: cloneAssignments(task.weekly),
+    catchUpClaims: task.catchUpClaims.map((a) => ({ ...a })),
+    totalTasksCompleted: task.totalTasksCompleted,
+    history: task.history.map((h) => ({ ...h })),
+  };
+}
+
+export function reduceTaskEvent(prev: GameState, event: QuestEvent, now = Date.now()): GameState {
+  const task = cloneTaskState(prev.task);
+  ensureCurrentTasks(task, ALL_TASKS, DEFAULT_TASK_SELECTION, new Date(now), prev.combatLevel);
+  const result = processTaskEvent(task, new Date(now), event);
+  if (result.changed.length === 0) return prev;
+  const completedGains = result.newlyCompleted.map((assignment) => ({
+    id: nextId(),
+    text: `Task complete: ${TASK_BY_ID[assignment.taskId]?.name ?? assignment.taskId}`,
+    kind: 'rare' as const,
+  }));
+  return { ...prev, task, gains: pushGains(prev.gains, completedGains) };
 }
 
 function rollLootFor(enemyId: string): { itemId: string; quantity: number }[] {
@@ -442,6 +483,12 @@ export function tick(prev: GameState, now: number): GameState {
               toolId: newTool?.id ?? null, startTime: now, duration,
             }, now),
           };
+          for (const resource of reward.resources) {
+            state = reduceTaskEvent(state, {
+              type: 'resource_gathered', skillId: action.skill,
+              resourceId: resource.itemId, quantity: resource.quantity,
+            }, now);
+          }
         }
       } else if (action.kind === 'crafting' && action.recipeId) {
         const recipe = getRecipeById(action.recipeId);
@@ -492,6 +539,11 @@ export function tick(prev: GameState, now: number): GameState {
                 startTime: now, duration: recipe.duration,
               }, now),
             };
+            for (const output of craft.outputs) {
+              state = reduceTaskEvent(state, {
+                type: 'item_crafted', itemId: output.itemId, quantity: output.quantity,
+              }, now);
+            }
           }
         }
       }
@@ -559,6 +611,14 @@ export function tick(prev: GameState, now: number): GameState {
             sessionGold: combat.sessionGold + enemy.goldReward,
           },
         };
+        state = reduceTaskEvent(state, {
+          type: 'enemy_killed', enemyId: enemy.id, regionId: combat.regionId,
+        }, now);
+        for (const drop of loot) {
+          state = reduceTaskEvent(state, {
+            type: 'item_collected', itemId: drop.itemId, quantity: drop.quantity,
+          }, now);
+        }
       } else {
         const enemy = ALL_ENEMIES.find((e) => e.id === combat.enemyId) ?? ALL_ENEMIES[0];
         state = {
@@ -668,6 +728,36 @@ export const reduceRemoveQueuedAction = (prev: GameState, index: number): GameSt
 });
 export const reduceClearActionQueue = (prev: GameState): GameState => ({ ...prev, actionQueue: [] });
 export const reduceClearActionLog = (prev: GameState): GameState => ({ ...prev, actionLog: [] });
+
+export function reduceClaimTask(prev: GameState, taskId: string, now = Date.now()): GameState {
+  const task = cloneTaskState(prev.task);
+  const current = getCurrentTasks(task, new Date(now));
+  const assignment = [...current.daily, ...current.weekly, ...task.catchUpClaims]
+    .find((a) => a.taskId === taskId && a.completed && !a.claimed);
+  if (!assignment) return prev;
+  const claim = claimTask(task, assignment, (id) => TASK_BY_ID[id]?.reward, now);
+  if (!claim) return prev;
+
+  let inventory = prev.inventory;
+  for (const item of claim.reward.items ?? []) inventory = addInventory(inventory, item.itemId, item.quantity);
+  const skills = { ...prev.skills };
+  for (const [skillId, xp] of Object.entries(claim.reward.skillExperience ?? {})) {
+    if (skillId in skills) skills[skillId as SkillId] += xp;
+  }
+  const combatXp = prev.combatXp + claim.reward.experience;
+  return {
+    ...prev,
+    task,
+    gold: prev.gold + claim.reward.gold,
+    inventory,
+    skills,
+    combatXp,
+    combatLevel: levelForXp(combatXp),
+    gains: pushGains(prev.gains, [
+      { id: nextId(), text: `Task reward · +${claim.reward.gold} gold · +${claim.reward.experience} XP`, kind: 'rare' },
+    ]),
+  };
+}
 export const reduceSetSelectedSkill = (prev: GameState, skill: SkillId): GameState => ({ ...prev, selectedSkill: skill });
 export const reduceClearCombatLog = (prev: GameState): GameState => ({
   ...prev,
@@ -966,8 +1056,10 @@ export function resolveDungeonCombat(
     let gold = prev.gold + encounterGold;
     let combatXp = newCombatXp;
     let combatLevel = newCombatLevel;
+    let dungeonCompleted = false;
 
     if (finishedRun && finishedRun.status === 'completed' && finishedRun.result === 'victory') {
+      dungeonCompleted = true;
       const rewards = computeDungeonRewards(finishedRun, dungeon);
       combatXp += rewards.xp;
       gold += rewards.gold;
@@ -1004,7 +1096,7 @@ export function resolveDungeonCombat(
       resolved.state.progress[progressId] = addRunHistory(progress, historyEntry);
     }
 
-    return {
+    const next = {
       ...prev,
       gold,
       inventory,
@@ -1018,6 +1110,9 @@ export function resolveDungeonCombat(
         playerHp: ceiling(encounter.player.health, encounter.player.maxHealth),
       },
     };
+    return dungeonCompleted
+      ? reduceTaskEvent(next, { type: 'dungeon_completed', dungeonId: dungeon.id }, now)
+      : next;
   }
 
   // defeat — run failed on this floor

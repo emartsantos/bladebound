@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import type { SectionId } from '@premium-rpg/ui-tokens';
 import { RARITY_TREATMENTS } from '@premium-rpg/ui-tokens';
-import { LuClock, LuLock, LuMap, LuCompass, LuSparkles, LuHammer, LuFlame, LuClipboardList, LuBookMarked, LuTrophy, LuShoppingBag, LuSearch, LuCoins, LuSwords, LuSlidersHorizontal, LuScrollText, LuBackpack, LuX } from 'react-icons/lu';
+import { LuClock, LuLock, LuMap, LuCompass, LuSparkles, LuHammer, LuFlame, LuClipboardList, LuBookMarked, LuTrophy, LuShoppingBag, LuSearch, LuCoins, LuSwords, LuSlidersHorizontal, LuScrollText, LuBackpack, LuX, LuCircleCheck } from 'react-icons/lu';
 import type { IconType } from 'react-icons';
-import type { QuestDefinition, PlayerSummary, EquipmentSlot } from '@premium-rpg/shared-types';
+import type { QuestDefinition, PlayerSummary, EquipmentSlot, TaskAssignment } from '@premium-rpg/shared-types';
 import type { Region } from '@premium-rpg/game-data';
-import { ITEM_BY_ID, QUESTS, ALL_REGIONS, ALL_ENEMIES } from '@premium-rpg/game-data';
+import { ITEM_BY_ID, QUESTS, ALL_REGIONS, ALL_ENEMIES, TASK_BY_ID } from '@premium-rpg/game-data';
+import { getCurrentTasks } from '@premium-rpg/game-engine';
 import { Tooltip } from '@/components/ui/tooltip';
 import { usePlayer } from '@/lib/use-player';
 import { useGame } from '@/lib/game-state';
@@ -514,6 +515,60 @@ function WorldSection() {
 
 // ── GENERIC / PLACEHOLDER SECTIONS ──────────────────────────────
 
+function TasksSection() {
+  const { state, claimTask: claimTaskReward } = useGame();
+  const current = getCurrentTasks(state.task, new Date());
+
+  const group = (title: string, assignments: TaskAssignment[]) => (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="section-label">{title}</h2>
+        <span className="font-mono text-[10px] text-stone">
+          {assignments.filter((a) => a.completed).length}/{assignments.length} complete
+        </span>
+      </div>
+      {assignments.map((assignment) => {
+        const definition = TASK_BY_ID[assignment.taskId];
+        const pct = Math.min(100, Math.round((assignment.current / assignment.required) * 100));
+        return (
+          <Panel key={assignment.taskId} bodyClassName="p-4">
+            <div className="flex items-start gap-3">
+              <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border ${assignment.completed ? 'border-verdant/50 bg-verdant/10 text-verdantBright' : 'border-iron bg-charcoal text-bronze'}`}>
+                {assignment.completed ? <LuCircleCheck className="h-4 w-4" /> : <LuClipboardList className="h-4 w-4" />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-bone">{definition?.name ?? assignment.taskId}</h3>
+                  <span className="font-mono text-[10px] text-stone">{assignment.current}/{assignment.required}</span>
+                </div>
+                <p className="mt-0.5 text-[11px] text-mist">{definition?.description}</p>
+                <Bar variant={assignment.completed ? 'resource' : 'xp'} pct={pct} height={4} className="mt-2" />
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-bronze">
+                    +{definition?.reward.gold ?? 0}g · +{definition?.reward.experience ?? 0} XP
+                  </span>
+                  {assignment.completed && !assignment.claimed && (
+                    <GameButton variant="primary" onClick={() => claimTaskReward(assignment.taskId)}>Claim reward</GameButton>
+                  )}
+                  {assignment.claimed && <span className="text-[10px] uppercase tracking-wider text-verdantBright">Claimed</span>}
+                </div>
+              </div>
+            </div>
+          </Panel>
+        );
+      })}
+    </section>
+  );
+
+  return (
+    <div className="max-w-3xl space-y-5">
+      <SectionHeader title="Tasks" eyebrow="Daily & Weekly" />
+      {group('Daily quests', current.daily)}
+      {group('Weekly contracts', current.weekly)}
+    </div>
+  );
+}
+
 const PLACEHOLDER: Record<string, { icon: IconType; blurb: string; empty: string; hint: string }> = {
   crafting: { icon: LuHammer, blurb: 'Weapons, armor, bars and consumables, forged from gathered materials.', empty: 'The fires are cold', hint: 'Mine and smelt ores to unlock forging here.' },
   tasks: { icon: LuClipboardList, blurb: 'Daily and weekly objectives with steady rewards.', empty: 'No tasks issued', hint: 'New tasks arrive each day and week.' },
@@ -626,8 +681,8 @@ export function SectionContent({ section }: { section: SectionId }) {
     case 'equipment': return <EquipmentSection />;
     case 'adventure': return <AdventureSection />;
     case 'activities': return <ActivitiesSection />;
-    case 'crafting':
-    case 'tasks':
+    case 'crafting': return <PlaceholderSection id={section} />;
+    case 'tasks': return <TasksSection />;
     case 'collections':
     case 'achievements':
       return <PlaceholderSection id={section} />;

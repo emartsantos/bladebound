@@ -1,4 +1,4 @@
-import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState } from '@premium-rpg/shared-types';
+import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, PlayerTaskState } from '@premium-rpg/shared-types';
 import type { ActiveAction, QueuedAction } from '@/lib/game/service';
 
 /**
@@ -25,6 +25,8 @@ export interface GameSaveData {
   dungeon?: PlayerDungeonState;
   /** Transient active dungeon fight (restored so a reload keeps fighting). */
   dungeonCombat?: DungeonCombatSlice;
+  /** Daily/weekly assignments and their live progress. */
+  task?: PlayerTaskState;
 }
 
 /**

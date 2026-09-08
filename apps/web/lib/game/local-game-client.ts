@@ -14,6 +14,7 @@ import {
   reduceRemoveQueuedAction,
   reduceClearActionQueue,
   reduceClearActionLog,
+  reduceClaimTask,
   reduceSetSelectedSkill,
   reduceSetCombatTarget,
   reduceFight,
@@ -101,6 +102,10 @@ export class LocalGameClient implements GameClient {
 
   clearActionLog(): void {
     this.setState(reduceClearActionLog(this.state));
+  }
+
+  claimTask(taskId: string): void {
+    this.setState(reduceClaimTask(this.state, taskId));
   }
 
   setSelectedSkill(skill: SkillId): void {

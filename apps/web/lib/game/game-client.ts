@@ -20,6 +20,7 @@ export interface GameClient {
   removeQueuedAction(index: number): void;
   clearActionQueue(): void;
   clearActionLog(): void;
+  claimTask(taskId: string): void;
   setSelectedSkill(skill: SkillId): void;
 
   setCombatTarget(regionId: string, enemyId: string): void;

@@ -33,6 +33,7 @@ export interface GameContextValue {
   removeQueuedAction: (index: number) => void;
   clearActionQueue: () => void;
   clearActionLog: () => void;
+  claimTask: (taskId: string) => void;
   setSelectedSkill: (skill: SkillId) => void;
   setCombatTarget: (regionId: string, enemyId: string) => void;
   fight: () => void;
@@ -144,6 +145,7 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
   const removeQueuedAction = useCallback((index: number) => run((c) => c.removeQueuedAction(index)), [run]);
   const clearActionQueue = useCallback(() => run((c) => c.clearActionQueue()), [run]);
   const clearActionLog = useCallback(() => run((c) => c.clearActionLog()), [run]);
+  const claimTask = useCallback((taskId: string) => run((c) => c.claimTask(taskId)), [run]);
   const setSelectedSkill = useCallback((skill: SkillId) => run((c) => c.setSelectedSkill(skill)), [run]);
   const setCombatTarget = useCallback((regionId: string, enemyId: string) => run((c) => c.setCombatTarget(regionId, enemyId)), [run]);
   const fight = useCallback(() => run((c) => c.fight()), [run]);
@@ -181,6 +183,7 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
         removeQueuedAction,
         clearActionQueue,
         clearActionLog,
+        claimTask,
         setSelectedSkill,
         setCombatTarget,
         fight,

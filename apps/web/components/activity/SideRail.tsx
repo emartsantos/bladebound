@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
 import { LuBed, LuPlay, LuPause, LuFlag, LuCircle, LuCircleCheck } from 'react-icons/lu';
 import { useGame } from '@/lib/game-state';
 import { Bar } from '@/components/game/primitives';
+import { getCurrentTasks } from '@premium-rpg/game-engine';
+import { TASK_BY_ID } from '@premium-rpg/game-data';
 
 interface Goal {
   key: string;
@@ -17,19 +18,13 @@ export function SideRail() {
   const { state } = useGame();
   const combat = state.combat;
 
-  const totalItems = useMemo(
-    () => Object.values(state.inventory).reduce((sum, qty) => sum + qty, 0),
-    [state.inventory],
-  );
-
-  const goals: Goal[] = useMemo(
-    () => [
-      { key: 'kills', label: 'Defeat 25 enemies', current: combat.sessionKills, target: 25, complete: combat.sessionKills >= 25 },
-      { key: 'gold', label: 'Claim 1,500 gold', current: combat.sessionGold, target: 1500, complete: combat.sessionGold >= 1500 },
-      { key: 'items', label: 'Amass 60 materials', current: totalItems, target: 60, complete: totalItems >= 60 },
-    ],
-    [combat.sessionKills, combat.sessionGold, totalItems],
-  );
+  const goals: Goal[] = getCurrentTasks(state.task, new Date()).daily.map((assignment) => ({
+    key: assignment.taskId,
+    label: TASK_BY_ID[assignment.taskId]?.name ?? assignment.taskId,
+    current: assignment.current,
+    target: assignment.required,
+    complete: assignment.completed,
+  }));
   const done = goals.filter((g) => g.complete).length;
 
   return (
@@ -52,15 +47,15 @@ export function SideRail() {
         </div>
       </section>
 
-      {/* Daily goals (real session data, not fake) */}
+      {/* Persisted daily task progress from the authoritative game state. */}
       <section className="panel">
         <header className="panel-header">
           <span className="section-label">Today&apos;s Campaign</span>
         </header>
         <div className="space-y-3 p-3">
           <div className="flex items-center justify-between text-[10px] text-stone">
-            <span>Session objectives</span>
-            <span className="font-mono text-bone">{done}/3</span>
+            <span>Daily quests</span>
+            <span className="font-mono text-bone">{done}/{goals.length}</span>
           </div>
           {goals.map((g) => {
             const pct = Math.min(100, Math.round((g.current / g.target) * 100));

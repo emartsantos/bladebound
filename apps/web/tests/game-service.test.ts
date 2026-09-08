@@ -24,6 +24,8 @@ import {
   xpStepForLevel,
   MAX_ACTION_QUEUE,
   reduceRemoveQueuedAction,
+  reduceTaskEvent,
+  reduceClaimTask,
 } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { levelForXp } from '@premium-rpg/game-engine';
@@ -96,6 +98,42 @@ describe('trade action queue', () => {
     const reloaded = mergeSeed(makeConfig({ persistence }));
     expect(reloaded.activeAction?.nodeId).toBe('copper_vein');
     expect(reloaded.actionQueue[0]?.nodeId).toBe('regular_tree');
+  });
+});
+
+describe('daily task progress', () => {
+  it('advances a matching gameplay objective and persists the counter', () => {
+    const base = mergeSeed(makeConfig());
+    const key = Object.keys(base.task.daily)[0];
+    const taskNow = Date.now();
+    const assignment = {
+      taskId: 'd_mine_copper', group: 'daily' as const, objectiveType: 'gather' as const,
+      objectiveTarget: 'copper_ore', skillId: 'mining', regionId: null,
+      required: 12, current: 0, completed: false, claimed: false, assignedAt: taskNow,
+    };
+    const state: GameState = { ...base, task: { ...base.task, daily: { [key]: [assignment] } } };
+
+    const progressed = reduceTaskEvent(state, {
+      type: 'resource_gathered', skillId: 'mining', resourceId: 'copper_ore', quantity: 3,
+    }, taskNow);
+    expect(progressed.task.daily[key][0].current).toBe(3);
+    expect(gameToSaveData(progressed).task?.daily[key][0].current).toBe(3);
+  });
+
+  it('allows a completed daily task reward to be claimed once', () => {
+    const base = mergeSeed(makeConfig());
+    const key = Object.keys(base.task.daily)[0];
+    const taskNow = Date.now();
+    const assignment = {
+      taskId: 'd_mine_copper', group: 'daily' as const, objectiveType: 'gather' as const,
+      objectiveTarget: 'copper_ore', skillId: 'mining', regionId: null,
+      required: 12, current: 12, completed: true, claimed: false, assignedAt: taskNow,
+    };
+    const state: GameState = { ...base, task: { ...base.task, daily: { [key]: [assignment] } } };
+    const claimed = reduceClaimTask(state, assignment.taskId, taskNow);
+    expect(claimed.gold).toBe(state.gold + 110);
+    expect(claimed.task.daily[key][0].claimed).toBe(true);
+    expect(reduceClaimTask(claimed, assignment.taskId, taskNow)).toBe(claimed);
   });
 });
 
