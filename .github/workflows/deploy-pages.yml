@@ -38,13 +38,11 @@ jobs:
       # install-strategy=nested; local npm stays nested via .npmrc.
       - name: Install dependencies
         run: |
-          npm ci --install-strategy=hoisted --no-audit --no-fund
-          rc=$?
-          if [ $rc -ne 0 ]; then
+          if ! npm ci --install-strategy=hoisted --no-audit --no-fund; then
             latest=$(ls -t "$HOME/.npm/_logs/"*.log 2>/dev/null | head -1)
-            echo "::error::npm ci exit=$rc log=$latest"
-            tail -60 "$latest" 2>/dev/null | sed 's/^\(.*\)$/::error::\1/'
-            exit $rc
+            echo "::error::npm ci failed; log=$latest"
+            tail -60 "$latest" 2>/dev/null | sed 's/^/::error::/'
+            exit 1
           fi
 
       - name: Type-check web app
