@@ -64,13 +64,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const client = useMemo(() => getAuthClient(), []);
 
   useEffect(() => {
-    setState(client.restoreSession());
+    let active = true;
+    Promise.resolve(client.restoreSession()).then((next) => { if (active) setState(next); });
+    return () => { active = false; };
   }, [client]);
 
   const login = useCallback(
     async (username: string, password: string): Promise<AuthLoginResponse> => {
       const result = await client.login(username, password);
-      if (result.success) setState(client.restoreSession());
+      if (result.success) setState(await client.restoreSession());
       return result;
     },
     [client],
@@ -83,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       characterClass?: PlayerClassId,
     ): Promise<AuthRegisterResponse> => {
       const result = await client.register(username, password, characterClass);
-      if (result.success) setState(client.restoreSession());
+      if (result.success) setState(await client.restoreSession());
       return result;
     },
     [client],
@@ -92,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginAsGuest = useCallback(
     async (characterClass?: PlayerClassId): Promise<AuthLoginResponse> => {
       const result = await client.loginAsGuest(characterClass);
-      if (result.success) setState(client.restoreSession());
+      if (result.success) setState(await client.restoreSession());
       return result;
     },
     [client],
@@ -101,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const createCharacter = useCallback(
     async (request: CreateCharacterRequest): Promise<CreateCharacterResponse> => {
       const result = await client.createCharacter(request);
-      if (result.success) setState(client.restoreSession());
+      if (result.success) setState(await client.restoreSession());
       return result;
     },
     [client],
@@ -110,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const renameCharacter = useCallback(
     async (request: RenameCharacterRequest): Promise<RenameCharacterResponse> => {
       const result = await client.renameCharacter(request);
-      if (result.success) setState(client.restoreSession());
+      if (result.success) setState(await client.restoreSession());
       return result;
     },
     [client],

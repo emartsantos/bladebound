@@ -157,7 +157,7 @@ const starterEquipment = (characterClass: PlayerClassId): CharacterMetadata['equ
   return base;
 };
 
-const starterCharacter = (id: string, name: string, characterClass: PlayerClassId = DEFAULT_PLAYER_CLASS): CharacterMetadata => {
+export const starterCharacter = (id: string, name: string, characterClass: PlayerClassId = DEFAULT_PLAYER_CLASS): CharacterMetadata => {
   const def = getPlayerClass(characterClass);
   const skills = { ...STARTER_SKILLS };
   for (const [skill, lean] of Object.entries(def.skillLean)) {

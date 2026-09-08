@@ -74,6 +74,6 @@ export interface DungeonCombatSlice {
 /** The persistence boundary for authoritative game data. */
 export interface GamePersistence {
   load(playerId: string): GameSaveData | null;
-  save(playerId: string, data: GameSaveData): void;
+  save(playerId: string, data: GameSaveData, syncCloud?: boolean): void;
   remove(playerId: string): void;
 }

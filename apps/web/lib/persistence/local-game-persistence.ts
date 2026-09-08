@@ -1,6 +1,7 @@
 'use client';
 
 import { migrateGameSave, type GamePersistence, type GameSaveData } from './game-persistence';
+import { pushSupabaseGameSave } from './supabase-game-sync';
 
 const SAVE_PREFIX = 'premium-rpg:game:';
 const RECOVERY_PREFIX = 'premium-rpg:game-recovery:';
@@ -30,13 +31,14 @@ export const localGamePersistence: GamePersistence = {
     }
   },
 
-  save(playerId, data) {
+  save(playerId, data, syncCloud = true) {
     try {
       const serialized = JSON.stringify(migrateGameSave({ ...data, savedAt: Date.now() }));
       localStorage.setItem(`${SAVE_PREFIX}${playerId}`, serialized);
       // A separate recovery copy protects progress from an interrupted write
       // or a malformed primary value after an application update.
       localStorage.setItem(`${RECOVERY_PREFIX}${playerId}`, serialized);
+      if (syncCloud && playerId.startsWith('account:')) void pushSupabaseGameSave(JSON.parse(serialized) as GameSaveData);
     } catch {
       // quota / privacy-mode: ignore
     }

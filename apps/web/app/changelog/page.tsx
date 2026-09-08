@@ -24,6 +24,18 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.1.8',
+    type: 'minor',
+    date: '2026-09-08',
+    changes: [
+      { category: 'Added', description: 'Persistent Supabase email/password authentication for registered players' },
+      { category: 'Added', description: 'Local-first cloud save upload and cloud restore after login' },
+      { category: 'Added', description: 'Automatic access-token refresh and secure logout' },
+      { category: 'Changed', description: 'Registration and login now use an email address' },
+      { category: 'Changed', description: 'Guest play remains available as a device-local mode' },
+    ],
+  },
+  {
     version: 'v0.1.7',
     type: 'patch',
     date: '2026-09-08',

@@ -12,6 +12,8 @@ import {
   developmentAuthClient,
   type PlayerClassId,
 } from './development-auth-adapter';
+import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { supabaseAuthClient } from './supabase-auth-adapter';
 
 /**
  * The authentication service boundary. The React context (AuthProvider) is the
@@ -33,7 +35,7 @@ export interface AuthClient {
   createCharacter(request: CreateCharacterRequest): Promise<CreateCharacterResponse>;
   renameCharacter(request: RenameCharacterRequest): Promise<RenameCharacterResponse>;
   /** Restore a session/state from the currently persisted session. */
-  restoreSession(): AuthState;
+  restoreSession(): AuthState | Promise<AuthState>;
   logout(): void;
   exportGuestSave(): string | null;
   importGuestSave(saveData: string): { success: boolean; guestSession: GuestSessionData | null };
@@ -48,9 +50,7 @@ let client: AuthClient | null = null;
  */
 export function getAuthClient(): AuthClient {
   if (!client) {
-    // Future: switch on a deployment flag (e.g. NEXT_PUBLIC_AUTH_BACKEND)
-    // to return a server-backed AuthClient instead.
-    client = developmentAuthClient;
+    client = isSupabaseConfigured() ? supabaseAuthClient : developmentAuthClient;
   }
   return client;
 }

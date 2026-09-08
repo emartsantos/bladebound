@@ -106,8 +106,9 @@ export default function HomePage() {
                   className="space-y-3"
                 >
                   <input
-                    type="text"
-                    placeholder="Username"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="Email address"
                     value={loginForm.username}
                     onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
                     className="input w-full"
@@ -148,8 +149,9 @@ export default function HomePage() {
                   className="space-y-3"
                 >
                   <input
-                    type="text"
-                    placeholder="Username"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="Email address"
                     value={registerForm.username}
                     onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })}
                     className="input w-full"
