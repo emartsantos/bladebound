@@ -38,7 +38,7 @@ export const localGamePersistence: GamePersistence = {
       // A separate recovery copy protects progress from an interrupted write
       // or a malformed primary value after an application update.
       localStorage.setItem(`${RECOVERY_PREFIX}${playerId}`, serialized);
-      if (syncCloud && playerId.startsWith('account:')) void pushSupabaseGameSave(JSON.parse(serialized) as GameSaveData);
+      if (syncCloud && (playerId.startsWith('account:') || playerId.startsWith('character:'))) void pushSupabaseGameSave(JSON.parse(serialized) as GameSaveData);
     } catch {
       // quota / privacy-mode: ignore
     }

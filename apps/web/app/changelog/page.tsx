@@ -24,6 +24,21 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.4.0',
+    type: 'major',
+    date: '2026-09-08',
+    changes: [
+      { category: 'Added', description: 'Capped BHC battle rewards scaled by hero level, enemy category, weapon rarity, Forge, and Awakening' },
+      { category: 'Added', description: 'Premium Forge progression from +1 to +10 with visible costs and +4% weapon stats per level' },
+      { category: 'Added', description: 'Weapon Awakening I–V with Forge prerequisites and +8% weapon stats per tier' },
+      { category: 'Added', description: 'Rarity-priced weapon affix rerolls, Hero Rebirth I–V, and Hero Reforge bonuses' },
+      { category: 'Added', description: 'BHC balance, total burned amount, affordability states, and per-hero investment history' },
+      { category: 'Security', description: 'Supabase BHC balances and investment ledgers are owner-readable but cannot be minted or edited by browser clients' },
+      { category: 'Fixed', description: 'Per-character local saves now resume cloud synchronization after the v0.2 hero-key migration' },
+      { category: 'Changed', description: 'Save schema upgraded to v5 with backward-compatible investment initialization' },
+    ],
+  },
+  {
     version: 'v0.3.0',
     type: 'major',
     date: '2026-09-08',

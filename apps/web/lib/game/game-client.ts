@@ -36,6 +36,11 @@ export interface GameClient {
   resetProgress(): void;
   equipItem(slot: EquipmentSlot, itemId: string): void;
   unequipItem(slot: EquipmentSlot): void;
+  forgeWeapon(): void;
+  awakenWeapon(): void;
+  rerollWeapon(): void;
+  rebirthHero(): void;
+  reforgeHero(): void;
 
   buyShopItem(shopItemId: string): void;
   sellItem(itemId: string): void;

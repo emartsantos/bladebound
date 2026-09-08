@@ -97,7 +97,7 @@ import { itemName, itemHeal } from '@/lib/item-names';
 import { GAME_SAVE_SCHEMA_VERSION, type EconomyTransaction, type GamePersistence, type GameSaveData } from '@/lib/persistence/game-persistence';
 import type { DungeonCombatSlice } from '@/lib/persistence/game-persistence';
 import type { DailyBattleState, BattleHistoryEntry } from '@/lib/persistence/game-persistence';
-import type { RetentionState } from '@/lib/persistence/game-persistence';
+import type { RetentionState, InvestmentState, InvestmentRecord } from '@/lib/persistence/game-persistence';
 import { COMBAT_LEVEL_CAP, derivedCombatStats } from '@/lib/combat-progression';
 
 export const TICK_MS = 250;
@@ -201,6 +201,7 @@ export interface GameState {
   collection: import('@premium-rpg/shared-types').PlayerCollectionState;
   bestiary: import('@premium-rpg/shared-types').BestiaryState;
   retention: RetentionState;
+  investment: InvestmentState;
 }
 
 export interface SkillView {
@@ -370,6 +371,7 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     collection,
     bestiary,
     retention: seedRetention(save?.retention, retainedAction),
+    investment: save?.investment ?? { bhc: 0, burnedTotal: 0, heroRebirth: 0, heroReforge: 0, heroBonusStat: null, heroBonusValue: 0, history: [] },
   };
 }
 
@@ -436,6 +438,7 @@ export function gameToSaveData(state: GameState): GameSaveData {
     collection: state.collection,
     bestiary: state.bestiary,
     retention: { ...state.retention, lastSeenAt: Date.now() },
+    investment: state.investment,
   };
 }
 
@@ -594,6 +597,18 @@ function rollLootFor(enemyId: string): { itemId: string; quantity: number }[] {
   return drops;
 }
 
+const RARITY_BHC_BONUS: Record<string, number> = { common: 0, uncommon: 0.02, rare: 0.05, epic: 0.09, legendary: 0.15 };
+
+export function battleBhcReward(state: GameState, enemy: EnemyDefinition): number {
+  const weapon = state.equipment.weapon;
+  const rarity = weapon ? ITEM_BY_ID[weapon.itemId]?.rarity ?? 'common' : 'common';
+  const forge = Number(weapon?.metadata?.forgeLevel ?? 0);
+  const awakening = Number(weapon?.metadata?.awakening ?? 0);
+  const categoryBonus = enemy.category === 'boss' ? 0.12 : enemy.category === 'rare' ? 0.07 : enemy.category === 'elite' ? 0.03 : 0;
+  const raw = 0.08 + Math.min(0.2, state.combatLevel * 0.002) + RARITY_BHC_BONUS[rarity] + forge * 0.005 + awakening * 0.01 + categoryBonus;
+  return Math.min(0.5, Math.round(raw * 1000) / 1000);
+}
+
 function addInventory(inv: Record<string, number>, itemId: string, quantity: number): Record<string, number> {
   const next = { ...inv };
   next[itemId] = Math.max(0, (next[itemId] ?? 0) + quantity);
@@ -620,7 +635,7 @@ function roundDelayMs(encounter: CombatEncounter): number {
 function beginEncounter(prev: GameState, now: number): GameState {
   const enemy = ALL_ENEMIES.find((e) => e.id === prev.combat.enemyId);
   if (!enemy || prev.combat.encounter || now < prev.dailyBattle.nextBattleAt) return prev;
-  const stats = derivedCombatStats(prev.combatLevel, prev.characterClass, prev.equipment);
+  const stats = derivedCombatStats(prev.combatLevel, prev.characterClass, prev.equipment, prev.investment);
   const attemptId = `battle-${now}-${nextId()}`;
   const player = createPlayerParticipant(
     prev.playerName,
@@ -798,9 +813,11 @@ export function tick(prev: GameState, now: number): GameState {
         const enemy = ALL_ENEMIES.find((e) => e.id === combat.enemyId) ?? ALL_ENEMIES[0];
         const newCombatXp = state.combatXp + enemy.xpReward;
         const newCombatLevel = Math.min(COMBAT_LEVEL_CAP, levelForXp(newCombatXp));
+        const bhcReward = battleBhcReward(state, enemy);
         const gains: GainFeed[] = [
           { id: nextId(), text: `+${enemy.goldReward} gold`, kind: 'gold' },
           { id: nextId(), text: `+${enemy.xpReward} XP`, kind: 'xp' },
+          { id: nextId(), text: `+${bhcReward.toFixed(3)} BHC`, kind: 'rare' },
         ];
         if (newCombatLevel > state.combatLevel) {
           gains.push({ id: nextId(), text: `Combat level up → ${newCombatLevel}!`, kind: 'level' });
@@ -824,6 +841,7 @@ export function tick(prev: GameState, now: number): GameState {
           result: 'victory',
           xp: enemy.xpReward,
           gold: enemy.goldReward,
+          bhc: bhcReward,
           loot,
         };
         state = {
@@ -832,6 +850,7 @@ export function tick(prev: GameState, now: number): GameState {
           inventory,
           combatXp: newCombatXp,
           combatLevel: newCombatLevel,
+          investment: { ...state.investment, bhc: Math.round((state.investment.bhc + bhcReward) * 1000) / 1000 },
           gains: pushGains(state.gains, gains),
           dailyBattle: { ...state.dailyBattle, activeAttemptId: null, activeStartedAt: null, history: [...state.dailyBattle.history, historyEntry].slice(-30) },
           combat: {
@@ -1171,6 +1190,96 @@ export function reduceUnequipItem(prev: GameState, slot: EquipmentSlot): GameSta
       ...prev.actionLog,
     ].slice(0, 60),
   };
+}
+
+// ─── FORGING & INVESTMENT ───────────────────────────────────────
+
+export const FORGE_COSTS = [0.25, 0.35, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.75, 2] as const;
+export const AWAKENING_COSTS = [1, 2, 4, 7, 12] as const;
+export const REBIRTH_COSTS = [2, 4, 7, 11, 16] as const;
+export const REBIRTH_LEVELS = [20, 40, 60, 80, 100] as const;
+const RARITY_REROLL_COST: Record<string, number> = { common: 0.5, uncommon: 0.75, rare: 1.25, epic: 2, legendary: 3 };
+const HERO_REFORGE_COSTS = [1, 2, 4, 7, 10] as const;
+
+export function weaponRerollCost(state: GameState): number | null {
+  const weapon = state.equipment.weapon;
+  if (!weapon) return null;
+  return RARITY_REROLL_COST[ITEM_BY_ID[weapon.itemId]?.rarity ?? 'common'];
+}
+
+export function heroReforgeCost(state: GameState): number {
+  return HERO_REFORGE_COSTS[Math.min(state.investment.heroReforge, HERO_REFORGE_COSTS.length - 1)];
+}
+
+function spendInvestment(prev: GameState, cost: number, record: Omit<InvestmentRecord, 'id' | 'cost' | 'createdAt'>, patch: Partial<InvestmentState>): GameState {
+  if (prev.investment.bhc + 0.000001 < cost) return prev;
+  const createdAt = Date.now();
+  const entry: InvestmentRecord = { ...record, id: `investment-${createdAt}-${nextId()}`, cost, createdAt };
+  return {
+    ...prev,
+    investment: {
+      ...prev.investment,
+      ...patch,
+      bhc: Math.round((prev.investment.bhc - cost) * 1000) / 1000,
+      burnedTotal: Math.round((prev.investment.burnedTotal + cost) * 1000) / 1000,
+      history: [entry, ...prev.investment.history].slice(0, 50),
+    },
+    gains: pushGains(prev.gains, [{ id: nextId(), text: `${record.label} · ${cost} BHC burned`, kind: 'rare' }]),
+  };
+}
+
+export function reduceForgeWeapon(prev: GameState): GameState {
+  const weapon = prev.equipment.weapon;
+  if (!weapon) return prev;
+  const level = Number(weapon.metadata?.forgeLevel ?? 0);
+  if (level >= 10) return prev;
+  const cost = FORGE_COSTS[level];
+  if (prev.investment.bhc < cost) return prev;
+  const equipment = { ...prev.equipment, weapon: { ...weapon, metadata: { ...weapon.metadata, forgeLevel: level + 1 } } };
+  return spendInvestment({ ...prev, equipment }, cost, { type: 'forge', label: `${itemName(weapon.itemId)} forged to +${level + 1}` }, {});
+}
+
+export function reduceAwakenWeapon(prev: GameState): GameState {
+  const weapon = prev.equipment.weapon;
+  if (!weapon) return prev;
+  const awakening = Number(weapon.metadata?.awakening ?? 0);
+  const forge = Number(weapon.metadata?.forgeLevel ?? 0);
+  if (awakening >= 5 || forge < (awakening + 1) * 2) return prev;
+  const cost = AWAKENING_COSTS[awakening];
+  if (prev.investment.bhc < cost) return prev;
+  const equipment = { ...prev.equipment, weapon: { ...weapon, metadata: { ...weapon.metadata, awakening: awakening + 1 } } };
+  return spendInvestment({ ...prev, equipment }, cost, { type: 'awaken', label: `${itemName(weapon.itemId)} awakened to tier ${awakening + 1}` }, {});
+}
+
+export function reduceRerollWeapon(prev: GameState): GameState {
+  const weapon = prev.equipment.weapon;
+  if (!weapon) return prev;
+  const cost = weaponRerollCost(prev);
+  if (cost === null) return prev;
+  if (prev.investment.bhc < cost) return prev;
+  const count = Number(weapon.metadata?.rerolls ?? 0) + 1;
+  const stats = ['strength', 'agility', 'intelligence', 'vitality'] as const;
+  const bonusStat = stats[count % stats.length];
+  const bonusValue = 2 + Math.floor(Number(ITEM_BY_ID[weapon.itemId]?.levelRequired ?? 1) / 10);
+  const equipment = { ...prev.equipment, weapon: { ...weapon, metadata: { ...weapon.metadata, rerolls: count, bonusStat, bonusValue } } };
+  return spendInvestment({ ...prev, equipment }, cost, { type: 'weapon_reroll', label: `${itemName(weapon.itemId)} rerolled: +${bonusValue} ${bonusStat}` }, {});
+}
+
+export function reduceRebirthHero(prev: GameState): GameState {
+  const tier = prev.investment.heroRebirth;
+  if (tier >= 5 || prev.combatLevel < REBIRTH_LEVELS[tier]) return prev;
+  const cost = REBIRTH_COSTS[tier];
+  return spendInvestment(prev, cost, { type: 'hero_rebirth', label: `Hero rebirth tier ${tier + 1}` }, { heroRebirth: tier + 1 });
+}
+
+export function reduceReforgeHero(prev: GameState): GameState {
+  const count = prev.investment.heroReforge;
+  const cost = heroReforgeCost(prev);
+  if (prev.investment.bhc < cost) return prev;
+  const stats = ['strength', 'agility', 'intelligence', 'vitality'] as const;
+  const bonusStat = stats[(count + 1) % stats.length];
+  const bonusValue = 3 + prev.investment.heroRebirth * 2;
+  return spendInvestment(prev, cost, { type: 'hero_reforge', label: `Hero reforged: +${bonusValue} ${bonusStat}` }, { heroReforge: count + 1, heroBonusStat: bonusStat, heroBonusValue: bonusValue });
 }
 
 // ─── ECONOMY (SHOP) ─────────────────────────────────────────────
