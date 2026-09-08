@@ -4,6 +4,7 @@ import type { SkillId, EquipmentSlot } from '@premium-rpg/shared-types';
 import type { GameClient } from './game-client';
 import type { GamePersistence } from '@/lib/persistence/game-persistence';
 import type { GameState, SeedConfig } from './service';
+import type { EconomyTransaction } from '@/lib/persistence/game-persistence';
 import {
   TICK_MS,
   mergeSeed,
@@ -73,13 +74,30 @@ export class LocalGameClient implements GameClient {
   // ---- private ----
 
   private applyTick(): void {
-    this.setState(tick(this.state, Date.now()));
+    this.setState(tick(this.state, Date.now()), 'gameplay');
   }
 
-  private setState(next: GameState): void {
-    this.state = next;
+  private setState(next: GameState, reason = 'system'): void {
+    if (next === this.state) return;
+    const entries = this.createLedgerEntries(this.state, next, reason);
+    this.state = entries.length ? { ...next, ledger: [...next.ledger, ...entries].slice(-500) } : next;
     this.schedulePersist();
     for (const listener of this.listeners) listener(this.state);
+  }
+
+  private createLedgerEntries(previous: GameState, next: GameState, reason: string): EconomyTransaction[] {
+    const createdAt = Date.now();
+    const entries: EconomyTransaction[] = [];
+    const add = (category: EconomyTransaction['category'], assetId: string, delta: number, balance: number) => {
+      if (!delta) return;
+      entries.push({ id: `${createdAt}-${category}-${assetId}-${entries.length}`, createdAt, category, assetId, delta, balance, reason });
+    };
+    add('gold', 'gold', next.gold - previous.gold, next.gold);
+    add('combat_xp', 'combat_xp', next.combatXp - previous.combatXp, next.combatXp);
+    for (const skill of Object.keys(next.skills) as SkillId[]) add('skill_xp', skill, next.skills[skill] - previous.skills[skill], next.skills[skill]);
+    const itemIds = new Set([...Object.keys(previous.inventory), ...Object.keys(next.inventory)]);
+    for (const itemId of itemIds) add('item', itemId, (next.inventory[itemId] ?? 0) - (previous.inventory[itemId] ?? 0), next.inventory[itemId] ?? 0);
+    return entries;
   }
 
   private schedulePersist(): void {
@@ -99,7 +117,7 @@ export class LocalGameClient implements GameClient {
   // ---- gathering / crafting ----
 
   startAction(skill: SkillId, id: string, kind: 'gathering' | 'crafting', repetitions = 1): void {
-    this.setState(reduceStartAction(this.state, skill, id, kind, repetitions));
+    this.setState(reduceStartAction(this.state, skill, id, kind, repetitions), `${kind}_queued`);
   }
 
   stopAction(): void {
@@ -119,7 +137,7 @@ export class LocalGameClient implements GameClient {
   }
 
   claimTask(taskId: string): void {
-    this.setState(reduceClaimTask(this.state, taskId));
+    this.setState(reduceClaimTask(this.state, taskId), 'task_reward');
   }
 
   setSelectedSkill(skill: SkillId): void {
@@ -133,7 +151,7 @@ export class LocalGameClient implements GameClient {
   }
 
   fight(): void {
-    this.setState(reduceFight(this.state));
+    this.setState(reduceFight(this.state), 'combat');
   }
 
   toggleAutoFight(): void {
@@ -145,7 +163,7 @@ export class LocalGameClient implements GameClient {
   }
 
   eatFood(): void {
-    this.setState(reduceEatFood(this.state));
+    this.setState(reduceEatFood(this.state), 'consume_item');
   }
 
   clearCombatLog(): void {
@@ -155,7 +173,7 @@ export class LocalGameClient implements GameClient {
   // ---- inventory / equipment ----
 
   repairAll(): void {
-    this.setState(reduceRepairAll(this.state));
+    this.setState(reduceRepairAll(this.state), 'equipment_repair');
   }
 
   equipItem(slot: EquipmentSlot, itemId: string): void {
@@ -169,21 +187,21 @@ export class LocalGameClient implements GameClient {
   // ---- economy (shop) ----
 
   buyShopItem(shopItemId: string): void {
-    this.setState(reduceShopBuy(this.state, shopItemId));
+    this.setState(reduceShopBuy(this.state, shopItemId), 'shop_purchase');
   }
 
   sellItem(itemId: string): void {
-    this.setState(reduceShopSell(this.state, itemId));
+    this.setState(reduceShopSell(this.state, itemId), 'shop_sale');
   }
 
   // ---- dungeons ----
 
   startDungeon(dungeonId: string): void {
-    this.setState(reduceDungeonEnter(this.state, dungeonId));
+    this.setState(reduceDungeonEnter(this.state, dungeonId), 'dungeon_entry');
   }
 
   dungeonFight(): void {
-    this.setState(reduceDungeonFight(this.state));
+    this.setState(reduceDungeonFight(this.state), 'dungeon_combat');
   }
 
   abandonDungeon(): void {

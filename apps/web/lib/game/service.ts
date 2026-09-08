@@ -73,7 +73,7 @@ import {
 } from '@premium-rpg/game-data';
 import { baseStatsForLevel, cumulativeXpForLevel } from '@/lib/player-summary';
 import { itemName, itemHeal } from '@/lib/item-names';
-import type { GamePersistence, GameSaveData } from '@/lib/persistence/game-persistence';
+import { GAME_SAVE_SCHEMA_VERSION, type EconomyTransaction, type GamePersistence, type GameSaveData } from '@/lib/persistence/game-persistence';
 import type { DungeonCombatSlice } from '@/lib/persistence/game-persistence';
 
 export const TICK_MS = 250;
@@ -168,6 +168,7 @@ export interface GameState {
   dungeonCombat: DungeonCombatSlice;
   /** Persisted daily and weekly task assignments and progress. */
   task: PlayerTaskState;
+  ledger: EconomyTransaction[];
 }
 
 export interface SkillView {
@@ -208,8 +209,7 @@ function initialDurability(equipment: EquipmentSlots): Record<string, number> {
 // the starter kit so no hunter is hard-blocked on materials (this is a demo;
 // the loop always needs something to work with). Existing items are untouched.
 function needsStarterSatchel(save: GameSaveData | null | undefined): boolean {
-  if (!save) return true;
-  return Object.keys(save.inventory ?? {}).length === 0;
+  return !save || save.inventory == null;
 }
 
 export function emptyEquipment(): EquipmentSlots {
@@ -296,32 +296,37 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     dungeon: save?.dungeon ?? emptyDungeonState(),
     dungeonCombat: save?.dungeonCombat ?? EMPTY_DUNGEON_COMBAT,
     task,
+    ledger: save?.ledger ?? [],
   };
 }
 
 // Build a working state seeded both from the shell player and any saved file.
 export function mergeSeed(config: SeedConfig): GameState {
+  const persisted = config.persistence.load(config.playerId);
   const base = seedState(config);
   const savedSkills = base.skills;
   const savedEquipment = base.equipment;
   return {
     ...base,
     playerName: config.playerName,
-    combatXp: base.combatXp > 0 ? base.combatXp : cumulativeXpForLevel(config.combatLevel),
+    combatXp: persisted && typeof persisted.combatXp === 'number'
+      ? base.combatXp
+      : cumulativeXpForLevel(config.combatLevel),
     combatLevel: base.combatLevel > 0 ? base.combatLevel : config.combatLevel,
     skills: {
-      mining: savedSkills.mining > 0 ? savedSkills.mining : config.skills.mining.xp,
-      woodcutting: savedSkills.woodcutting > 0 ? savedSkills.woodcutting : config.skills.woodcutting.xp,
-      fishing: savedSkills.fishing > 0 ? savedSkills.fishing : config.skills.fishing.xp,
-      smelting: savedSkills.smelting > 0 ? savedSkills.smelting : config.skills.smelting.xp,
-      smithing: savedSkills.smithing > 0 ? savedSkills.smithing : config.skills.smithing.xp,
-      cooking: savedSkills.cooking > 0 ? savedSkills.cooking : config.skills.cooking.xp,
-      fletching: savedSkills.fletching > 0 ? savedSkills.fletching : config.skills.fletching.xp,
-      alchemy: savedSkills.alchemy > 0 ? savedSkills.alchemy : config.skills.alchemy.xp,
-      runecrafting: savedSkills.runecrafting > 0 ? savedSkills.runecrafting : config.skills.runecrafting.xp,
+      mining: typeof persisted?.skills?.mining === 'number' ? savedSkills.mining : config.skills.mining.xp,
+      woodcutting: typeof persisted?.skills?.woodcutting === 'number' ? savedSkills.woodcutting : config.skills.woodcutting.xp,
+      fishing: typeof persisted?.skills?.fishing === 'number' ? savedSkills.fishing : config.skills.fishing.xp,
+      smelting: typeof persisted?.skills?.smelting === 'number' ? savedSkills.smelting : config.skills.smelting.xp,
+      smithing: typeof persisted?.skills?.smithing === 'number' ? savedSkills.smithing : config.skills.smithing.xp,
+      cooking: typeof persisted?.skills?.cooking === 'number' ? savedSkills.cooking : config.skills.cooking.xp,
+      fletching: typeof persisted?.skills?.fletching === 'number' ? savedSkills.fletching : config.skills.fletching.xp,
+      alchemy: typeof persisted?.skills?.alchemy === 'number' ? savedSkills.alchemy : config.skills.alchemy.xp,
+      runecrafting: typeof persisted?.skills?.runecrafting === 'number' ? savedSkills.runecrafting : config.skills.runecrafting.xp,
     },
-    gold: base.gold > 0 ? base.gold : Math.max(0, config.gold),
+    gold: typeof persisted?.gold === 'number' ? base.gold : Math.max(0, config.gold),
     equipment: Object.keys(savedEquipment).some((k) => savedEquipment[k as keyof EquipmentSlots])
+      || persisted?.equipment != null
       ? savedEquipment
       : config.equipment,
     durability: Object.keys(base.durability).length > 0 ? base.durability : initialDurability(config.equipment),
@@ -334,6 +339,8 @@ export function mergeSeed(config: SeedConfig): GameState {
 
 export function gameToSaveData(state: GameState): GameSaveData {
   return {
+    schemaVersion: GAME_SAVE_SCHEMA_VERSION,
+    savedAt: Date.now(),
     skills: state.skills,
     gold: state.gold,
     inventory: state.inventory,
@@ -348,6 +355,7 @@ export function gameToSaveData(state: GameState): GameSaveData {
     dungeon: state.dungeon,
     dungeonCombat: state.dungeonCombat,
     task: state.task,
+    ledger: state.ledger,
   };
 }
 

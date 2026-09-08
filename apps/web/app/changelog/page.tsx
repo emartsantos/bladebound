@@ -24,6 +24,17 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.1.6',
+    type: 'patch',
+    date: '2026-09-08',
+    changes: [
+      { category: 'Fixed', description: 'Zero gold, empty inventory, and zero-XP saves no longer restore starter values' },
+      { category: 'Added', description: 'Versioned game-save schema with automatic backward-compatible migration' },
+      { category: 'Added', description: 'Append-only transaction ledger for gold, items, combat XP, and skill XP' },
+      { category: 'Added', description: 'Supabase PostgreSQL schema with account ownership and row-level security policies' },
+    ],
+  },
+  {
     version: 'v0.1.5',
     type: 'patch',
     date: '2026-09-08',

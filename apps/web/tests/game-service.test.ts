@@ -208,6 +208,20 @@ describe('mergeSeed', () => {
     const reloaded = mergeSeed({ ...makeConfig(), persistence });
     expect(reloaded.gold).toBe(777);
   });
+
+  it('preserves intentional zero balances and an intentionally empty inventory', () => {
+    const persistence = new MemoryPersistence();
+    persistence.save('p-test', {
+      ...gameToSaveData(mergeSeed(makeConfig())),
+      gold: 0,
+      inventory: {},
+      skills: Object.fromEntries(ALL_SKILLS.map((skill) => [skill, 0])) as Record<SkillId, number>,
+    });
+    const reloaded = mergeSeed(makeConfig({ persistence, gold: 500 }));
+    expect(reloaded.gold).toBe(0);
+    expect(reloaded.inventory).toEqual({});
+    expect(reloaded.skills.mining).toBe(0);
+  });
 });
 
 // ── gathering ───────────────────────────────────────────────────

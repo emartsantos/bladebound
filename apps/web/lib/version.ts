@@ -1,3 +1,3 @@
 /** Single source of truth for the user-visible Bladehound release version. */
-export const APP_VERSION = '0.1.5';
+export const APP_VERSION = '0.1.6';
 export const APP_VERSION_LABEL = `v${APP_VERSION}`;
