@@ -97,7 +97,7 @@ import { itemName, itemHeal } from '@/lib/item-names';
 import { GAME_SAVE_SCHEMA_VERSION, type EconomyTransaction, type GamePersistence, type GameSaveData } from '@/lib/persistence/game-persistence';
 import type { DungeonCombatSlice } from '@/lib/persistence/game-persistence';
 import type { DailyBattleState, BattleHistoryEntry } from '@/lib/persistence/game-persistence';
-import type { RetentionState, InvestmentState, InvestmentRecord } from '@/lib/persistence/game-persistence';
+import type { RetentionState, InvestmentState, InvestmentRecord, MarketplaceAssetType, MarketplaceListing, MarketplaceState } from '@/lib/persistence/game-persistence';
 import { COMBAT_LEVEL_CAP, derivedCombatStats } from '@/lib/combat-progression';
 
 export const TICK_MS = 250;
@@ -106,6 +106,7 @@ export const REST_HEAL_FRACTION = 0.02; // of max HP per second
 export const MAX_ACTION_QUEUE = 10;
 export const MAX_ACTION_REPETITIONS = 1000;
 export const REWARDED_BATTLE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+export const MARKETPLACE_LISTING_FEE = 0.075;
 
 // Starter satchel for a brand-new save (no save file yet). Enough ore to try
 // mining + the Forge pipeline and a first alchemy brew, so new hunters aren't
@@ -202,6 +203,7 @@ export interface GameState {
   bestiary: import('@premium-rpg/shared-types').BestiaryState;
   retention: RetentionState;
   investment: InvestmentState;
+  marketplace: MarketplaceState;
 }
 
 export interface SkillView {
@@ -291,6 +293,27 @@ function seedRetention(saved: RetentionState | undefined, activeAction: ActiveAc
   return next;
 }
 
+function seedMarketplace(saved: MarketplaceState | undefined): MarketplaceState {
+  if (saved) return { ...saved, listingFee: MARKETPLACE_LISTING_FEE };
+  const now = Date.now();
+  const demo: MarketplaceListing[] = [
+    ['mkt-rune', 'Ashen Wolf', 'weapon', 'rune_sword', 'Rune Sword', 4.5, { rarity: 'epic', forgeLevel: 3 }],
+    ['mkt-dragon', 'Vale Keeper', 'weapon', 'dragon_sword', 'Dragon Sword', 7.25, { rarity: 'legendary', forgeLevel: 5, awakening: 1 }],
+    ['mkt-mithril', 'Iron Warden', 'weapon', 'mithril_sword', 'Mithril Sword', 2.75, { rarity: 'rare', forgeLevel: 2 }],
+    ['mkt-void', 'Nyx', 'weapon', 'void_blade', 'Void Blade', 12, { rarity: 'legendary', forgeLevel: 7, awakening: 2 }],
+    ['mkt-hero-1', 'Northwatch', 'hero', 'hero-riven', 'Riven · Level 24 Warrior', 9.5, { name: 'Riven', class: 'warrior', combatLevel: 24, nextBattleAt: now + 3_600_000 }],
+    ['mkt-hero-2', 'Ember Guild', 'hero', 'hero-lyra', 'Lyra · Level 38 Mage', 16, { name: 'Lyra', class: 'mage', combatLevel: 38, nextBattleAt: 0 }],
+    ['mkt-hero-3', 'Dawn Company', 'hero', 'hero-kael', 'Kael · Level 17 Rogue', 6.25, { name: 'Kael', class: 'rogue', combatLevel: 17, nextBattleAt: now + 12_000_000 }],
+    ['mkt-steel', 'Copper Fox', 'weapon', 'steel_sword', 'Steel Sword', 1.4, { rarity: 'uncommon', forgeLevel: 1 }],
+  ].map(([id, sellerName, assetType, assetId, title, price, snapshot], index) => ({
+    id: String(id), idempotencyKey: `seed-${id}`, sellerId: `market-seller-${index}`, sellerName: String(sellerName),
+    assetType: assetType as MarketplaceAssetType, assetId: String(assetId), title: String(title), price: Number(price),
+    listingFee: MARKETPLACE_LISTING_FEE, snapshot: snapshot as Record<string, unknown>, status: 'active', buyerId: null,
+    createdAt: now - (index + 1) * 3_600_000, completedAt: null,
+  }));
+  return { listingFee: MARKETPLACE_LISTING_FEE, listings: demo, history: [], acquiredHeroes: [], heroLocked: false };
+}
+
 export function emptyDungeonState(): PlayerDungeonState {
   return createEmptyDungeonState(ALL_DUNGEONS.map((d) => d.id));
 }
@@ -372,6 +395,7 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     bestiary,
     retention: seedRetention(save?.retention, retainedAction),
     investment: save?.investment ?? { bhc: 0, burnedTotal: 0, heroRebirth: 0, heroReforge: 0, heroBonusStat: null, heroBonusValue: 0, history: [] },
+    marketplace: seedMarketplace(save?.marketplace),
   };
 }
 
@@ -439,6 +463,7 @@ export function gameToSaveData(state: GameState): GameSaveData {
     bestiary: state.bestiary,
     retention: { ...state.retention, lastSeenAt: Date.now() },
     investment: state.investment,
+    marketplace: state.marketplace,
   };
 }
 
@@ -1280,6 +1305,113 @@ export function reduceReforgeHero(prev: GameState): GameState {
   const bonusStat = stats[(count + 1) % stats.length];
   const bonusValue = 3 + prev.investment.heroRebirth * 2;
   return spendInvestment(prev, cost, { type: 'hero_reforge', label: `Hero reforged: +${bonusValue} ${bonusStat}` }, { heroReforge: count + 1, heroBonusStat: bonusStat, heroBonusValue: bonusValue });
+}
+
+// ─── MARKETPLACE ────────────────────────────────────────────────
+
+function marketplaceHistory(prev: GameState, listingId: string, type: 'listed' | 'cancelled' | 'purchased' | 'sold', label: string, amount: number) {
+  const createdAt = Date.now();
+  return [{ id: `market-history-${createdAt}-${nextId()}`, listingId, type, label, amount, createdAt }, ...prev.marketplace.history].slice(0, 100);
+}
+
+/** Validate first, then burn the listing fee and escrow the asset in one transition. */
+export function reduceCreateMarketplaceListing(
+  prev: GameState,
+  actorId: string,
+  assetType: MarketplaceAssetType,
+  assetId: string,
+  price: number,
+  idempotencyKey: string,
+): GameState {
+  const cleanPrice = Math.round(price * 1000) / 1000;
+  if (!idempotencyKey || !Number.isFinite(cleanPrice) || cleanPrice < 0.01 || cleanPrice > 1_000_000) return prev;
+  if (prev.marketplace.listings.some((listing) => listing.idempotencyKey === idempotencyKey)) return prev;
+  if (prev.marketplace.listings.some((listing) => listing.status === 'active' && listing.sellerId === actorId && listing.assetType === assetType && listing.assetId === assetId)) return prev;
+  if (prev.investment.bhc + 0.000001 < prev.marketplace.listingFee) return prev;
+
+  let inventory = prev.inventory;
+  let heroLocked = prev.marketplace.heroLocked;
+  let title: string;
+  let snapshot: Record<string, unknown>;
+  if (assetType === 'weapon') {
+    const definition = ITEM_BY_ID[assetId];
+    if (definition?.equipmentSlot !== 'weapon' || (prev.inventory[assetId] ?? 0) < 1) return prev;
+    if (prev.equipment.weapon?.itemId === assetId) return prev;
+    inventory = addInventory(prev.inventory, assetId, -1);
+    title = itemName(assetId);
+    snapshot = { itemId: assetId, rarity: definition.rarity, levelRequired: definition.levelRequired ?? 1 };
+  } else {
+    if (heroLocked || assetId !== actorId) return prev;
+    heroLocked = true;
+    title = `${prev.playerName} · Level ${prev.combatLevel} ${prev.characterClass}`;
+    snapshot = {
+      name: prev.playerName, class: prev.characterClass, combatLevel: prev.combatLevel, combatXp: prev.combatXp,
+      skills: prev.skills, equipment: prev.equipment, investment: prev.investment, nextBattleAt: prev.dailyBattle.nextBattleAt,
+    };
+  }
+
+  const createdAt = Date.now();
+  const listing: MarketplaceListing = {
+    id: `market-${createdAt}-${nextId()}`, idempotencyKey, sellerId: actorId, sellerName: prev.playerName,
+    assetType, assetId, title, price: cleanPrice, listingFee: prev.marketplace.listingFee, snapshot,
+    status: 'active', buyerId: null, createdAt, completedAt: null,
+  };
+  const fee = prev.marketplace.listingFee;
+  return {
+    ...prev,
+    inventory,
+    activeAction: assetType === 'hero' ? null : prev.activeAction,
+    actionQueue: assetType === 'hero' ? [] : prev.actionQueue,
+    investment: {
+      ...prev.investment,
+      bhc: Math.round((prev.investment.bhc - fee) * 1000) / 1000,
+      burnedTotal: Math.round((prev.investment.burnedTotal + fee) * 1000) / 1000,
+    },
+    marketplace: {
+      ...prev.marketplace, heroLocked,
+      listings: [listing, ...prev.marketplace.listings],
+      history: marketplaceHistory(prev, listing.id, 'listed', `${title} listed`, fee),
+    },
+    gains: pushGains(prev.gains, [{ id: nextId(), text: `${title} listed · ${fee} BHC burned`, kind: 'rare' }]),
+  };
+}
+
+export function reduceCancelMarketplaceListing(prev: GameState, actorId: string, listingId: string): GameState {
+  const listing = prev.marketplace.listings.find((entry) => entry.id === listingId);
+  if (!listing || listing.status !== 'active' || listing.sellerId !== actorId) return prev;
+  const completedAt = Date.now();
+  const listings = prev.marketplace.listings.map((entry) => entry.id === listingId ? { ...entry, status: 'cancelled' as const, completedAt } : entry);
+  const inventory = listing.assetType === 'weapon' ? addInventory(prev.inventory, listing.assetId, 1) : prev.inventory;
+  return {
+    ...prev,
+    inventory,
+    marketplace: {
+      ...prev.marketplace,
+      heroLocked: listing.assetType === 'hero' ? false : prev.marketplace.heroLocked,
+      listings,
+      history: marketplaceHistory(prev, listing.id, 'cancelled', `${listing.title} cancelled · fee not refunded`, 0),
+    },
+  };
+}
+
+/** Transfer payment and escrowed ownership atomically; purchase price is transferred, never burned. */
+export function reduceBuyMarketplaceListing(prev: GameState, actorId: string, listingId: string, idempotencyKey: string): GameState {
+  const listing = prev.marketplace.listings.find((entry) => entry.id === listingId);
+  if (!listing || listing.status !== 'active' || listing.sellerId === actorId || !idempotencyKey) return prev;
+  if (prev.marketplace.history.some((entry) => entry.id === `purchase-${idempotencyKey}`)) return prev;
+  if (prev.investment.bhc + 0.000001 < listing.price) return prev;
+  const completedAt = Date.now();
+  const listings = prev.marketplace.listings.map((entry) => entry.id === listingId ? { ...entry, status: 'sold' as const, buyerId: actorId, completedAt } : entry);
+  const inventory = listing.assetType === 'weapon' ? addInventory(prev.inventory, listing.assetId, 1) : prev.inventory;
+  const acquiredHeroes = listing.assetType === 'hero' ? [...prev.marketplace.acquiredHeroes, { ...listing.snapshot, marketplaceAssetId: listing.assetId }] : prev.marketplace.acquiredHeroes;
+  const historyEntry = { id: `purchase-${idempotencyKey}`, listingId, type: 'purchased' as const, label: `${listing.title} purchased`, amount: listing.price, createdAt: completedAt };
+  return {
+    ...prev,
+    inventory,
+    investment: { ...prev.investment, bhc: Math.round((prev.investment.bhc - listing.price) * 1000) / 1000 },
+    marketplace: { ...prev.marketplace, listings, acquiredHeroes, history: [historyEntry, ...prev.marketplace.history].slice(0, 100) },
+    gains: pushGains(prev.gains, [{ id: nextId(), text: `${listing.title} acquired · ${listing.price} BHC transferred`, kind: 'rare' }]),
+  };
 }
 
 // ─── ECONOMY (SHOP) ─────────────────────────────────────────────

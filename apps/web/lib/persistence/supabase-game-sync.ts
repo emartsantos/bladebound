@@ -41,7 +41,11 @@ export async function claimSupabaseDailyBattle(characterId: string): Promise<{ s
   }, session.accessToken);
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { message?: string };
-    return { success: false, error: body.message?.includes('battle_cooldown') ? 'This hero has already battled today.' : (body.message ?? 'Could not reserve battle') };
+    return { success: false, error: body.message?.includes('battle_cooldown')
+      ? 'This hero has already battled today.'
+      : body.message?.includes('hero_market_locked')
+        ? 'This hero is locked in an active marketplace listing.'
+        : (body.message ?? 'Could not reserve battle') };
   }
   const row = (await response.json() as Array<{ next_battle_at?: string }>)[0];
   return { success: true, nextBattleAt: row?.next_battle_at ? Date.parse(row.next_battle_at) : undefined };

@@ -24,6 +24,20 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.5.0',
+    type: 'major',
+    date: '2026-09-08',
+    changes: [
+      { category: 'Added', description: 'Hero and weapon marketplace with search, asset filters, pagination, active listings, and transaction history' },
+      { category: 'Added', description: 'Server-configured 0.075 BHC listing fee burned only after successful validation and never refunded after listing' },
+      { category: 'Added', description: 'Escrow-style asset locks, unequipped-weapon validation, and Hero locks that preserve progression and battle cooldowns' },
+      { category: 'Added', description: 'Atomic, idempotent marketplace RPCs for listing, cancellation, purchase settlement, and ownership transfer' },
+      { category: 'Security', description: 'Server-stored prices, row locks, RLS, and mutation-only RPCs prevent self-buy, double-sale, duplicate burns, and browser ownership edits' },
+      { category: 'Changed', description: 'Marketplace sale payments transfer BHC from buyer to seller without reducing supply; only the listing fee is burned' },
+      { category: 'Changed', description: 'Save schema upgraded to v6 with backward-compatible marketplace initialization' },
+    ],
+  },
+  {
     version: 'v0.4.0',
     type: 'major',
     date: '2026-09-08',

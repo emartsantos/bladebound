@@ -21,6 +21,7 @@ import { itemName, itemHeal } from './item-names';
 import { useNotifications } from '@/components/ui/notification';
 import { localGamePersistence, migrateLocalGameSave } from '@/lib/persistence/local-game-persistence';
 import { claimSupabaseDailyBattle } from '@/lib/persistence/supabase-game-sync';
+import type { MarketplaceAssetType } from '@/lib/persistence/game-persistence';
 
 export type { GameState, ActiveAction, QueuedAction, ActionLogEntry, GainFeed, CombatView, SkillView };
 
@@ -57,6 +58,9 @@ export interface GameContextValue {
   reforgeHero: () => void;
   buyShopItem: (shopItemId: string) => void;
   sellItem: (itemId: string) => void;
+  createMarketplaceListing: (assetType: MarketplaceAssetType, assetId: string, price: number) => void;
+  cancelMarketplaceListing: (listingId: string) => void;
+  buyMarketplaceListing: (listingId: string) => void;
   startDungeon: (dungeonId: string) => void;
   dungeonFight: () => void;
   abandonDungeon: () => void;
@@ -170,6 +174,10 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
   const setSelectedSkill = useCallback((skill: SkillId) => run((c) => c.setSelectedSkill(skill)), [run]);
   const setCombatTarget = useCallback((regionId: string, enemyId: string) => run((c) => c.setCombatTarget(regionId, enemyId)), [run]);
   const fight = useCallback(async () => {
+    if (state.marketplace.heroLocked) {
+      addNotification('danger', 'Hero locked', 'Cancel the active marketplace listing before battling.');
+      return;
+    }
     if (characterId) {
       const claim = await claimSupabaseDailyBattle(characterId);
       if (!claim.success) {
@@ -178,7 +186,7 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
       }
     }
     run((c) => c.fight());
-  }, [characterId, run, addNotification]);
+  }, [characterId, run, addNotification, state.marketplace.heroLocked]);
   const toggleAutoFight = useCallback(() => run((c) => c.toggleAutoFight()), [run]);
   const toggleRest = useCallback(() => run((c) => c.toggleRest()), [run]);
   const eatFood = useCallback(() => run((c) => c.eatFood()), [run]);
@@ -194,6 +202,9 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
 
   const buyShopItem = useCallback((shopItemId: string) => run((c) => c.buyShopItem(shopItemId)), [run]);
   const sellItem = useCallback((itemId: string) => run((c) => c.sellItem(itemId)), [run]);
+  const createMarketplaceListing = useCallback((assetType: MarketplaceAssetType, assetId: string, price: number) => run((c) => c.createMarketplaceListing(assetType, assetId, price)), [run]);
+  const cancelMarketplaceListing = useCallback((listingId: string) => run((c) => c.cancelMarketplaceListing(listingId)), [run]);
+  const buyMarketplaceListing = useCallback((listingId: string) => run((c) => c.buyMarketplaceListing(listingId)), [run]);
   const startDungeon = useCallback((dungeonId: string) => run((c) => c.startDungeon(dungeonId)), [run]);
   const dungeonFight = useCallback(() => run((c) => c.dungeonFight()), [run]);
   const abandonDungeon = useCallback(() => run((c) => c.abandonDungeon()), [run]);
@@ -239,6 +250,9 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
         reforgeHero,
         buyShopItem,
         sellItem,
+        createMarketplaceListing,
+        cancelMarketplaceListing,
+        buyMarketplaceListing,
         startDungeon,
         dungeonFight,
         abandonDungeon,

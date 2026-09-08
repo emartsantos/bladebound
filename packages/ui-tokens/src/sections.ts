@@ -13,6 +13,7 @@ export const SECTION_ID = [
   'collections',
   'achievements',
   'shop',
+  'marketplace',
   'settings',
 ] as const;
 
@@ -38,6 +39,7 @@ export const SECTION_META: Record<SectionId, { label: string }> = {
   collections: { label: 'Collections' },
   achievements: { label: 'Achievements' },
   shop: { label: 'Shop' },
+  marketplace: { label: 'Marketplace' },
   settings: { label: 'Settings' },
 };
 
@@ -63,4 +65,4 @@ export const CONTENT_SECTIONS: readonly SectionId[] = [
   'achievements',
 ];
 
-export const SYSTEM_SECTIONS: readonly SectionId[] = ['shop', 'settings'];
+export const SYSTEM_SECTIONS: readonly SectionId[] = ['shop', 'marketplace', 'settings'];

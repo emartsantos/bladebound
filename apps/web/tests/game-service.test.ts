@@ -35,6 +35,10 @@ import {
   reduceRebirthHero,
   reduceReforgeHero,
   battleBhcReward,
+  reduceCreateMarketplaceListing,
+  reduceCancelMarketplaceListing,
+  reduceBuyMarketplaceListing,
+  MARKETPLACE_LISTING_FEE,
 } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { getCurrentTasks, levelForXp } from '@premium-rpg/game-engine';
@@ -491,6 +495,63 @@ describe('v0.4 forging and investment', () => {
       };
       expect(battleBhcReward(boosted, boss)).toBe(0.5);
     }
+  });
+});
+
+describe('v0.5 economy and marketplace', () => {
+  const actor = 'character:market-test';
+  const funded = (bhc = 20): GameState => {
+    const base = mergeSeed(makeConfig());
+    return { ...base, inventory: { ...base.inventory, iron_sword: 1 }, investment: { ...base.investment, bhc } };
+  };
+
+  it('validates before burning and charges exactly 0.075 BHC after listing', () => {
+    const base = funded(1);
+    const invalid = reduceCreateMarketplaceListing(base, actor, 'weapon', 'missing_weapon', 2, 'listing-invalid');
+    expect(invalid).toBe(base);
+    expect(invalid.investment.burnedTotal).toBe(0);
+
+    const listed = reduceCreateMarketplaceListing(base, actor, 'weapon', 'iron_sword', 2, 'listing-valid');
+    expect(listed.investment.bhc).toBe(1 - MARKETPLACE_LISTING_FEE);
+    expect(listed.investment.burnedTotal).toBe(MARKETPLACE_LISTING_FEE);
+    expect(listed.inventory.iron_sword ?? 0).toBe(0);
+    expect(listed.marketplace.listings[0].status).toBe('active');
+  });
+
+  it('makes listing retries idempotent without a duplicate fee burn', () => {
+    const once = reduceCreateMarketplaceListing(funded(1), actor, 'weapon', 'iron_sword', 2, 'listing-same-key');
+    const twice = reduceCreateMarketplaceListing(once, actor, 'weapon', 'iron_sword', 2, 'listing-same-key');
+    expect(twice).toBe(once);
+    expect(twice.investment.burnedTotal).toBe(MARKETPLACE_LISTING_FEE);
+  });
+
+  it('returns escrow on cancellation but never refunds the listing fee', () => {
+    const listed = reduceCreateMarketplaceListing(funded(1), actor, 'weapon', 'iron_sword', 2, 'listing-cancel');
+    const cancelled = reduceCancelMarketplaceListing(listed, actor, listed.marketplace.listings[0].id);
+    expect(cancelled.inventory.iron_sword).toBe(1);
+    expect(cancelled.investment.bhc).toBe(1 - MARKETPLACE_LISTING_FEE);
+    expect(cancelled.investment.burnedTotal).toBe(MARKETPLACE_LISTING_FEE);
+    expect(cancelled.marketplace.listings[0].status).toBe('cancelled');
+  });
+
+  it('forbids self-buy and transfers purchase BHC without burning it', () => {
+    const base = funded(20);
+    const listing = base.marketplace.listings.find((entry) => entry.status === 'active')!;
+    const ownView: GameState = { ...base, marketplace: { ...base.marketplace, listings: [{ ...listing, sellerId: actor }, ...base.marketplace.listings.filter((entry) => entry.id !== listing.id)] } };
+    expect(reduceBuyMarketplaceListing(ownView, actor, listing.id, 'buy-self')).toBe(ownView);
+
+    const bought = reduceBuyMarketplaceListing(base, actor, listing.id, 'buy-valid');
+    expect(bought.investment.bhc).toBe(20 - listing.price);
+    expect(bought.investment.burnedTotal).toBe(0);
+    expect(bought.marketplace.listings.find((entry) => entry.id === listing.id)?.status).toBe('sold');
+  });
+
+  it('locks a listed Hero while preserving its battle cooldown snapshot', () => {
+    const base = { ...funded(1), dailyBattle: { ...funded(1).dailyBattle, nextBattleAt: 1_800_000_000_000 } };
+    const listed = reduceCreateMarketplaceListing(base, actor, 'hero', actor, 8, 'hero-listing');
+    expect(listed.marketplace.heroLocked).toBe(true);
+    expect(listed.activeAction).toBeNull();
+    expect(listed.marketplace.listings[0].snapshot.nextBattleAt).toBe(1_800_000_000_000);
   });
 });
 
