@@ -17,6 +17,7 @@ import {
   LuScrollText, LuClipboardList, LuBookMarked, LuTrophy, LuShoppingBag, LuSettings,
   LuBell, LuChevronLeft, LuMenu, LuX, LuCoins, LuHeart, LuCrown, LuChevronDown,
   LuLogOut, LuGauge, LuCompass, LuFlameKindling,
+  LuHistory,
 } from 'react-icons/lu';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Dropdown } from '@/components/ui/dropdown';
@@ -210,6 +211,7 @@ export function TopBar() {
 
   const profileItems = [
     { label: 'Settings', value: 'settings', icon: <LuSettings className="h-3.5 w-3.5" /> },
+    { label: 'Changelog', value: 'changelog', icon: <LuHistory className="h-3.5 w-3.5" /> },
     { label: 'Logout', value: 'logout', icon: <LuLogOut className="h-3.5 w-3.5" /> },
   ];
 
@@ -270,6 +272,7 @@ export function TopBar() {
             items={profileItems}
             onSelect={(v) => {
               if (v === 'settings') setActiveSection('settings');
+              if (v === 'changelog') router.push('/changelog');
               if (v === 'logout') {
                 logout();
                 router.replace('/');
@@ -433,6 +436,14 @@ export function LeftNav() {
         </div>
 
         <div className="border-t border-iron/70 px-4 py-2.5">
+          <Link
+            href="/changelog"
+            className="mb-2 flex items-center gap-2 text-[11px] text-mist transition-colors hover:text-bone"
+          >
+            <LuHistory className="h-3.5 w-3.5 text-bronze" />
+            Changelog
+            <span className="ml-auto font-mono text-[10px] text-stone">{APP_VERSION_LABEL}</span>
+          </Link>
           <p className="text-[10px] leading-relaxed text-stone">
             The embers burn low. Steel still rings true.
           </p>

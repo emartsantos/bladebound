@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import type { SectionId } from '@premium-rpg/ui-tokens';
 import { RARITY_TREATMENTS } from '@premium-rpg/ui-tokens';
-import { LuClock, LuLock, LuMap, LuCompass, LuSparkles, LuHammer, LuFlame, LuClipboardList, LuBookMarked, LuTrophy, LuShoppingBag, LuSearch, LuCoins, LuSwords, LuSlidersHorizontal, LuScrollText, LuBackpack, LuX, LuCircleCheck } from 'react-icons/lu';
+import { LuClock, LuLock, LuMap, LuCompass, LuSparkles, LuHammer, LuFlame, LuClipboardList, LuBookMarked, LuTrophy, LuShoppingBag, LuSearch, LuCoins, LuSwords, LuSlidersHorizontal, LuScrollText, LuBackpack, LuX, LuCircleCheck, LuHistory } from 'react-icons/lu';
 import type { IconType } from 'react-icons';
 import type { QuestDefinition, PlayerSummary, EquipmentSlot, TaskAssignment } from '@premium-rpg/shared-types';
 import type { Region } from '@premium-rpg/game-data';
@@ -659,6 +660,14 @@ function SettingsSection() {
               Reset
             </GameButton>
           </div>
+          <div className="divider-row" />
+          <Link
+            href="/changelog"
+            className="flex items-center justify-between gap-3 px-1 py-2 text-sm text-bone transition-colors hover:text-emberLight"
+          >
+            <span className="flex items-center gap-2"><LuHistory className="h-4 w-4 text-bronze" /> View changelog</span>
+            <span className="font-mono text-[11px] text-stone">{APP_VERSION_LABEL}</span>
+          </Link>
           <div className="divider-row" />
           <div className="flex items-center gap-2 px-1 pt-2 text-[11px] text-stone">
             <LuSlidersHorizontal className="h-3.5 w-3.5" /> Bladehound · dark fantasy idle RPG

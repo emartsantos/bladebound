@@ -24,6 +24,15 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.1.5',
+    type: 'patch',
+    date: '2026-09-08',
+    changes: [
+      { category: 'Added', description: 'Changelog access from the account menu, desktop sidebar, and Settings page' },
+      { category: 'Changed', description: 'Version history is now a discoverable in-game page' },
+    ],
+  },
+  {
     version: 'v0.1.4',
     type: 'hotfix',
     date: '2026-09-08',
@@ -144,7 +153,7 @@ function ChangelogPage() {
         actions={
           <div className="flex items-center gap-2">
             <a
-              href="https://github.com"
+              href="https://github.com/emartsantos/bladebound"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-[10px] text-mist hover:text-bone transition-colors"
