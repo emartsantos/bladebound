@@ -43,11 +43,13 @@ test.describe('Category 2: Auth', () => {
     expect(auth!.guestId).toBeTruthy();
   });
 
-  test('logout clears the session and returns to the landing screen', async ({ page }) => {
+  test('logout clears the session and redirects to the login page', async ({ page }) => {
     await playAsGuest(page);
 
     await logoutViaUi(page);
 
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole('button', { name: 'Log In', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Play as Guest' })).toBeVisible();
 
     const auth = await readAuthStorage(page);

@@ -203,6 +203,7 @@ export function TopBar() {
   const { activeSection, setActiveSection } = useNav();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { logout } = useAuth();
+  const router = useRouter();
   const { player } = usePlayer();
   const { state, maxHealth } = useGame();
 
@@ -268,7 +269,10 @@ export function TopBar() {
             items={profileItems}
             onSelect={(v) => {
               if (v === 'settings') setActiveSection('settings');
-              if (v === 'logout') logout();
+              if (v === 'logout') {
+                logout();
+                router.replace('/');
+              }
             }}
             align="right"
           />
