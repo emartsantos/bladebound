@@ -26,6 +26,7 @@ import { ShopSection } from '@/components/ShopSection';
 import { DungeonsSection } from '@/components/DungeonsSection';
 import { getPlayerClass } from '@/lib/classes';
 import { assetPath } from '@/lib/asset-path';
+import { APP_VERSION_LABEL } from '@/lib/version';
 
 // ── SHARED HELPERS ──────────────────────────────────────────────
 
@@ -661,7 +662,7 @@ function SettingsSection() {
           <div className="divider-row" />
           <div className="flex items-center gap-2 px-1 pt-2 text-[11px] text-stone">
             <LuSlidersHorizontal className="h-3.5 w-3.5" /> Bladehound · dark fantasy idle RPG
-            <span className="ml-auto font-mono">v0.1.0</span>
+            <span className="ml-auto font-mono">{APP_VERSION_LABEL}</span>
           </div>
         </div>
       </Panel>

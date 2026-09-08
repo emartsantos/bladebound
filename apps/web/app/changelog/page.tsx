@@ -8,6 +8,7 @@ import { useAuth } from '@/context/auth-context';
 import { TopBar, LeftNav, Workspace, MobileBottomNav, NavProvider } from '@/components/shell';
 import { NotificationProvider } from '@/components/ui/notification';
 import { GameProvider } from '@/lib/game-state';
+import { APP_VERSION_LABEL } from '@/lib/version';
 
 type VersionType = 'major' | 'minor' | 'patch' | 'hotfix';
 
@@ -22,6 +23,20 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: 'v0.1.3',
+    type: 'patch',
+    date: '2026-09-08',
+    changes: [
+      { category: 'Added', description: 'FIFO trade-skill queue with up to 10 pending jobs' },
+      { category: 'Added', description: 'Configurable trade-skill repetitions from 1× to 1,000× per job' },
+      { category: 'Added', description: 'Persistent daily and weekly task progress with claimable rewards' },
+      { category: 'Changed', description: 'Activity sidebar now shows the same persisted daily quests as the Tasks page' },
+      { category: 'Fixed', description: 'Trade-skill progress timing and duration labels in the Activities workspace' },
+      { category: 'Fixed', description: 'Header trade-skill progress bar and countdown now update smoothly in real time' },
+      { category: 'Fixed', description: 'Logout now returns the player to the login page' },
+    ],
+  },
   {
     version: 'v0.1.2',
     type: 'patch',
@@ -173,7 +188,7 @@ function ChangelogPage() {
       </div>
 
       <div className="panel p-4 text-center">
-        <p className="text-xs text-stone">Bladehound v0.1.2 — Steel rings true beneath the embers.</p>
+        <p className="text-xs text-stone">Bladehound {APP_VERSION_LABEL} — Steel rings true beneath the embers.</p>
       </div>
     </div>
   );

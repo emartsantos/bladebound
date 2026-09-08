@@ -26,6 +26,7 @@ import { useGame } from '@/lib/game-state';
 import { SKILL_ORDER, skillLabel } from '@/lib/skills-meta';
 import { SkillIcon } from '@/components/game/icons';
 import { CurrentAction } from '@/components/CurrentAction';
+import { APP_VERSION_LABEL } from '@/lib/version';
 
 // ── NAV DEFINITION ──────────────────────────────────────────────
 
@@ -192,7 +193,7 @@ function Wordmark() {
       <span className="hidden font-display text-[15px] font-semibold tracking-[0.2em] text-bone sm:block">
         BLADEHOUND
       </span>
-      <span className="hidden text-[10px] font-mono text-stone md:inline">v0.1.0</span>
+      <span className="hidden text-[10px] font-mono text-stone md:inline">{APP_VERSION_LABEL}</span>
     </Link>
   );
 }

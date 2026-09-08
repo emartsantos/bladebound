@@ -5,13 +5,15 @@ import { useGame } from '@/lib/game-state';
 import { skillLabel, formatDuration, actionName } from '@/lib/skills-meta';
 import { SkillIcon } from '@/components/game/icons';
 import { Bar } from '@/components/game/primitives';
+import { useNow } from '@/components/activity/useNow';
 
 export function CurrentAction() {
   const { state, stopAction } = useGame();
+  const now = useNow(100);
   const active = state.activeAction;
   if (!active) return null;
 
-  const elapsed = Math.max(0, Date.now() - active.startTime);
+  const elapsed = Math.max(0, now - active.startTime);
   const remaining = Math.max(0, active.duration - elapsed);
   const pct = Math.min(100, (elapsed / active.duration) * 100);
 
