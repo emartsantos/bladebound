@@ -24,6 +24,21 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.6.0',
+    type: 'major',
+    date: '2026-09-08',
+    changes: [
+      { category: 'Added', description: 'Summon and collect 125 Heroes across Warrior, Assassin, Ranger, Mage, and Knight classes with five rarities and variations' },
+      { category: 'Added', description: 'Published 55/27/12/5/1 rarity odds, Rare+ 10-pity, Epic+ 50-pity, and Legendary 100-pity' },
+      { category: 'Added', description: 'Duplicate Heroes grant rarity-scaled Essence without creating extra reward-battle capacity' },
+      { category: 'Added', description: 'Summoned Hero roster, immutable summon history, finite reward pool, and one battle per Hero every 24 hours with a five-battle daily account cap' },
+      { category: 'Changed', description: 'Each 1.00 BHC summon settles as 0.50 burned, 0.40 to the Battle Reward Pool, and 0.10 to Treasury' },
+      { category: 'Fixed', description: 'Trade action repetitions and queued jobs now catch up from persisted elapsed time after the tab or browser has been closed' },
+      { category: 'Security', description: 'Server-generated recorded rolls, idempotent settlement, immutable ledgers, RLS, capped archetype supply, and server-only pool mutations' },
+      { category: 'Changed', description: 'Save schema upgraded to v7 with backward-compatible Summoning initialization' },
+    ],
+  },
+  {
     version: 'v0.5.0',
     type: 'major',
     date: '2026-09-08',

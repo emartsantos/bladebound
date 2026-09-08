@@ -7,6 +7,7 @@ export const SECTION_ID = [
   'inventory',
   'equipment',
   'crafting',
+  'summoning',
   'dungeons',
   'quests',
   'tasks',
@@ -33,6 +34,7 @@ export const SECTION_META: Record<SectionId, { label: string }> = {
   inventory: { label: 'Inventory' },
   equipment: { label: 'Equipment' },
   crafting: { label: 'Crafting' },
+  summoning: { label: 'Summoning' },
   dungeons: { label: 'Dungeons' },
   quests: { label: 'Quests' },
   tasks: { label: 'Tasks' },
@@ -55,6 +57,7 @@ export const PROGRESSION_SECTIONS: readonly SectionId[] = [
   'inventory',
   'equipment',
   'crafting',
+  'summoning',
 ];
 
 export const CONTENT_SECTIONS: readonly SectionId[] = [

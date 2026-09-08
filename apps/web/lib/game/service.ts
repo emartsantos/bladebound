@@ -97,7 +97,7 @@ import { itemName, itemHeal } from '@/lib/item-names';
 import { GAME_SAVE_SCHEMA_VERSION, type EconomyTransaction, type GamePersistence, type GameSaveData } from '@/lib/persistence/game-persistence';
 import type { DungeonCombatSlice } from '@/lib/persistence/game-persistence';
 import type { DailyBattleState, BattleHistoryEntry } from '@/lib/persistence/game-persistence';
-import type { RetentionState, InvestmentState, InvestmentRecord, MarketplaceAssetType, MarketplaceListing, MarketplaceState } from '@/lib/persistence/game-persistence';
+import type { RetentionState, InvestmentState, InvestmentRecord, MarketplaceAssetType, MarketplaceListing, MarketplaceState, SummonClass, SummonRarity, SummoningState } from '@/lib/persistence/game-persistence';
 import { COMBAT_LEVEL_CAP, derivedCombatStats } from '@/lib/combat-progression';
 
 export const TICK_MS = 250;
@@ -105,8 +105,14 @@ export const AUTO_FIGHT_GAP_MS = 1100;
 export const REST_HEAL_FRACTION = 0.02; // of max HP per second
 export const MAX_ACTION_QUEUE = 10;
 export const MAX_ACTION_REPETITIONS = 1000;
+export const MAX_OFFLINE_CATCHUP_PER_TICK = 500;
 export const REWARDED_BATTLE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 export const MARKETPLACE_LISTING_FEE = 0.075;
+export const SUMMON_COST = 1;
+export const SUMMON_BURN = 0.5;
+export const SUMMON_REWARD_POOL = 0.4;
+export const SUMMON_TREASURY = 0.1;
+export const SUMMONED_HERO_BATTLE_CAP = 5;
 
 // Starter satchel for a brand-new save (no save file yet). Enough ore to try
 // mining + the Forge pipeline and a first alchemy brew, so new hunters aren't
@@ -204,6 +210,7 @@ export interface GameState {
   retention: RetentionState;
   investment: InvestmentState;
   marketplace: MarketplaceState;
+  summoning: SummoningState;
 }
 
 export interface SkillView {
@@ -314,6 +321,10 @@ function seedMarketplace(saved: MarketplaceState | undefined): MarketplaceState 
   return { listingFee: MARKETPLACE_LISTING_FEE, listings: demo, history: [], acquiredHeroes: [], heroLocked: false };
 }
 
+function seedSummoning(saved: SummoningState | undefined): SummoningState {
+  return saved ?? { heroes: [], history: [], pity: 0, totalSummons: 0, essence: 0, rewardPool: 0, treasury: 0, battleDay: null, battlesToday: 0 };
+}
+
 export function emptyDungeonState(): PlayerDungeonState {
   return createEmptyDungeonState(ALL_DUNGEONS.map((d) => d.id));
 }
@@ -396,6 +407,7 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     retention: seedRetention(save?.retention, retainedAction),
     investment: save?.investment ?? { bhc: 0, burnedTotal: 0, heroRebirth: 0, heroReforge: 0, heroBonusStat: null, heroBonusValue: 0, history: [] },
     marketplace: seedMarketplace(save?.marketplace),
+    summoning: seedSummoning(save?.summoning),
   };
 }
 
@@ -464,6 +476,7 @@ export function gameToSaveData(state: GameState): GameSaveData {
     retention: { ...state.retention, lastSeenAt: Date.now() },
     investment: state.investment,
     marketplace: state.marketplace,
+    summoning: state.summoning,
   };
 }
 
@@ -694,7 +707,7 @@ function beginEncounter(prev: GameState, now: number): GameState {
  * the resulting state re-arms the action/encounter in the same immutable
  * update, so a duplicate evaluation cannot double-grant.
  */
-export function tick(prev: GameState, now: number): GameState {
+function tickCore(prev: GameState, now: number, includeCombat: boolean): GameState {
   let state = prev;
 
   // ---- Active action (gathering / crafting) ----
@@ -813,6 +826,7 @@ export function tick(prev: GameState, now: number): GameState {
     }
   }
 
+  if (includeCombat) {
   // ---- Combat: active encounter rounds ----
   let combat = state.combat;
   if (combat.encounter && !combat.encounter.finished && combat.nextRoundAt && now >= combat.nextRoundAt) {
@@ -956,8 +970,29 @@ export function tick(prev: GameState, now: number): GameState {
     const playerHp = Math.min(stats.maxHealth, combat.playerHp + heal);
     state = { ...state, combat: { ...state.combat, playerHp, resting: playerHp < stats.maxHealth } };
   }
+  }
 
   return state;
+}
+
+/**
+ * Resolve every elapsed trade completion in chronological order. This makes
+ * persisted queues catch up after reload/browser close instead of restarting
+ * their timers. Work is bounded per UI tick; very long queues continue
+ * draining on following ticks without blocking the page.
+ */
+export function tick(prev: GameState, now: number): GameState {
+  let state = prev;
+  let completed = 0;
+  while (state.activeAction && completed < MAX_OFFLINE_CATCHUP_PER_TICK) {
+    const completionAt = state.activeAction.startTime + state.activeAction.duration;
+    if (completionAt > now) break;
+    const next = tickCore(state, completionAt, false);
+    if (next === state) break;
+    state = next;
+    completed += 1;
+  }
+  return completed >= MAX_OFFLINE_CATCHUP_PER_TICK ? state : tickCore(state, now, true);
 }
 
 // ---- Action reducers (pure state transitions) ----
@@ -1305,6 +1340,91 @@ export function reduceReforgeHero(prev: GameState): GameState {
   const bonusStat = stats[(count + 1) % stats.length];
   const bonusValue = 3 + prev.investment.heroRebirth * 2;
   return spendInvestment(prev, cost, { type: 'hero_reforge', label: `Hero reforged: +${bonusValue} ${bonusStat}` }, { heroReforge: count + 1, heroBonusStat: bonusStat, heroBonusValue: bonusValue });
+}
+
+// ─── SUMMONING ──────────────────────────────────────────────────
+
+export const SUMMON_RARITY_ODDS: ReadonlyArray<{ rarity: SummonRarity; chance: number }> = [
+  { rarity: 'common', chance: 0.55 },
+  { rarity: 'uncommon', chance: 0.27 },
+  { rarity: 'rare', chance: 0.12 },
+  { rarity: 'epic', chance: 0.05 },
+  { rarity: 'legendary', chance: 0.01 },
+];
+const SUMMON_CLASSES: readonly SummonClass[] = ['warrior', 'assassin', 'ranger', 'mage', 'knight'];
+const SUMMON_NAMES: Record<SummonClass, readonly string[]> = {
+  warrior: ['Aldric', 'Brynn', 'Corin', 'Dagna', 'Eryk'], assassin: ['Nyra', 'Silas', 'Vex', 'Kestrel', 'Shade'],
+  ranger: ['Lyra', 'Rowan', 'Tarin', 'Wren', 'Fael'], mage: ['Orin', 'Seraph', 'Mira', 'Cael', 'Ilyra'],
+  knight: ['Garran', 'Elowen', 'Lucan', 'Maelis', 'Tor'],
+};
+const DUPLICATE_ESSENCE: Record<SummonRarity, number> = { common: 1, uncommon: 2, rare: 5, epic: 12, legendary: 30 };
+const SUMMON_BATTLE_REWARD: Record<SummonRarity, number> = { common: 0.05, uncommon: 0.07, rare: 0.1, epic: 0.14, legendary: 0.2 };
+
+export function summonRarityForRoll(roll: number, pity: number, totalSummons: number): SummonRarity {
+  const safe = Math.max(0, Math.min(0.999999, roll));
+  let rarity: SummonRarity = safe < 0.55 ? 'common' : safe < 0.82 ? 'uncommon' : safe < 0.94 ? 'rare' : safe < 0.99 ? 'epic' : 'legendary';
+  const number = totalSummons + 1;
+  if (pity >= 99) rarity = 'legendary';
+  else if (number % 50 === 0 && (rarity === 'common' || rarity === 'uncommon' || rarity === 'rare')) rarity = 'epic';
+  else if (number % 10 === 0 && (rarity === 'common' || rarity === 'uncommon')) rarity = 'rare';
+  return rarity;
+}
+
+/** One summon, one idempotency key, and the complete 50/40/10 settlement. */
+export function reduceSummonHero(prev: GameState, roll: number, idempotencyKey: string): GameState {
+  if (!idempotencyKey || !Number.isFinite(roll) || roll < 0 || roll >= 1 || prev.investment.bhc + 0.000001 < SUMMON_COST) return prev;
+  if (prev.summoning.history.some((entry) => entry.idempotencyKey === idempotencyKey)) return prev;
+  const rarity = summonRarityForRoll(roll, prev.summoning.pity, prev.summoning.totalSummons);
+  const classIndex = Math.floor((roll * 100_003) % SUMMON_CLASSES.length);
+  const heroClass = SUMMON_CLASSES[classIndex];
+  const variation = Math.floor((roll * 10_007) % 5) + 1;
+  const archetypeId = `${heroClass}-${rarity}-${variation}`;
+  const heroName = SUMMON_NAMES[heroClass][variation - 1];
+  const existing = prev.summoning.heroes.find((hero) => hero.archetypeId === archetypeId);
+  const essenceGain = existing ? DUPLICATE_ESSENCE[rarity] : 0;
+  const createdAt = Date.now();
+  const heroes = existing
+    ? prev.summoning.heroes.map((hero) => hero.archetypeId === archetypeId ? { ...hero, copies: hero.copies + 1, essence: hero.essence + essenceGain } : hero)
+    : [...prev.summoning.heroes, { id: `summoned-${createdAt}-${nextId()}`, archetypeId, name: heroName, class: heroClass, rarity, variation, copies: 1, essence: 0, summonedAt: createdAt, nextBattleAt: 0 }];
+  const history = [{ id: `summon-${createdAt}-${nextId()}`, idempotencyKey, archetypeId, heroName, rarity, heroClass, duplicate: Boolean(existing), roll, createdAt }, ...prev.summoning.history].slice(0, 100);
+  return {
+    ...prev,
+    investment: {
+      ...prev.investment,
+      bhc: Math.round((prev.investment.bhc - SUMMON_COST) * 1000) / 1000,
+      burnedTotal: Math.round((prev.investment.burnedTotal + SUMMON_BURN) * 1000) / 1000,
+    },
+    summoning: {
+      ...prev.summoning, heroes, history, totalSummons: prev.summoning.totalSummons + 1,
+      pity: rarity === 'legendary' ? 0 : prev.summoning.pity + 1,
+      essence: prev.summoning.essence + essenceGain,
+      rewardPool: Math.round((prev.summoning.rewardPool + SUMMON_REWARD_POOL) * 1000) / 1000,
+      treasury: Math.round((prev.summoning.treasury + SUMMON_TREASURY) * 1000) / 1000,
+    },
+    gains: pushGains(prev.gains, [{ id: nextId(), text: existing ? `${heroName} duplicate · +${essenceGain} essence` : `${rarity} ${heroName} summoned`, kind: rarity === 'epic' || rarity === 'legendary' ? 'rare' : 'item' }]),
+  };
+}
+
+export function reduceSummonedHeroBattle(prev: GameState, heroId: string, now = Date.now()): GameState {
+  const hero = prev.summoning.heroes.find((entry) => entry.id === heroId);
+  if (!hero || hero.nextBattleAt > now) return prev;
+  const today = new Date(now).toISOString().slice(0, 10);
+  const battlesToday = prev.summoning.battleDay === today ? prev.summoning.battlesToday : 0;
+  if (battlesToday >= SUMMONED_HERO_BATTLE_CAP) return prev;
+  const reward = SUMMON_BATTLE_REWARD[hero.rarity];
+  if (prev.summoning.rewardPool + 0.000001 < reward) return prev;
+  return {
+    ...prev,
+    investment: { ...prev.investment, bhc: Math.round((prev.investment.bhc + reward) * 1000) / 1000 },
+    summoning: {
+      ...prev.summoning,
+      heroes: prev.summoning.heroes.map((entry) => entry.id === heroId ? { ...entry, nextBattleAt: now + REWARDED_BATTLE_COOLDOWN_MS } : entry),
+      rewardPool: Math.round((prev.summoning.rewardPool - reward) * 1000) / 1000,
+      battleDay: today,
+      battlesToday: battlesToday + 1,
+    },
+    gains: pushGains(prev.gains, [{ id: nextId(), text: `${hero.name} returned · +${reward} BHC from the reward pool`, kind: 'rare' }]),
+  };
 }
 
 // ─── MARKETPLACE ────────────────────────────────────────────────

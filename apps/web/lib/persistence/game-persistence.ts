@@ -1,7 +1,7 @@
 import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, PlayerTaskState, PlayerQuestState, PlayerAchievementState, PlayerCollectionState, BestiaryState } from '@premium-rpg/shared-types';
 import type { ActiveAction, QueuedAction } from '@/lib/game/service';
 
-export const GAME_SAVE_SCHEMA_VERSION = 6;
+export const GAME_SAVE_SCHEMA_VERSION = 7;
 
 export interface RetentionMail {
   id: string;
@@ -110,6 +110,46 @@ export interface MarketplaceState {
   heroLocked: boolean;
 }
 
+export type SummonRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+export type SummonClass = 'warrior' | 'assassin' | 'ranger' | 'mage' | 'knight';
+
+export interface SummonedHero {
+  id: string;
+  archetypeId: string;
+  name: string;
+  class: SummonClass;
+  rarity: SummonRarity;
+  variation: number;
+  copies: number;
+  essence: number;
+  summonedAt: number;
+  nextBattleAt: number;
+}
+
+export interface SummonHistoryEntry {
+  id: string;
+  idempotencyKey: string;
+  archetypeId: string;
+  heroName: string;
+  rarity: SummonRarity;
+  heroClass: SummonClass;
+  duplicate: boolean;
+  roll: number;
+  createdAt: number;
+}
+
+export interface SummoningState {
+  heroes: SummonedHero[];
+  history: SummonHistoryEntry[];
+  pity: number;
+  totalSummons: number;
+  essence: number;
+  rewardPool: number;
+  treasury: number;
+  battleDay: string | null;
+  battlesToday: number;
+}
+
 /**
  * The authoritative fields of a game save. Carried by every persistence
  * implementation; clients never write this shape directly except through a
@@ -149,6 +189,7 @@ export interface GameSaveData {
   retention?: RetentionState;
   investment?: InvestmentState;
   marketplace?: MarketplaceState;
+  summoning?: SummoningState;
 }
 
 /** Upgrade older browser/cloud saves without discarding valid zero balances. */
