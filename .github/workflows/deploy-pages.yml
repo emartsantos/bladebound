@@ -33,12 +33,11 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      # hoisted (npm default) on Linux avoids EBADPLATFORM from the win32-only
-      # optionalDependency recorded in the lock under the repo's Windows-oriented
-      # install-strategy=nested; local npm stays nested via .npmrc.
+      # `npm install` repairs the Windows-generated nested lock metadata on the
+      # Linux runner and skips incompatible optional native packages.
       - name: Install dependencies
         run: |
-          if ! npm ci --install-strategy=hoisted --no-audit --no-fund; then
+          if ! npm install --install-strategy=hoisted --no-audit --no-fund; then
             latest=$(ls -t "$HOME/.npm/_logs/"*.log 2>/dev/null | head -1)
             echo "::error::npm ci failed; log=$latest"
             tail -60 "$latest" 2>/dev/null | sed 's/^/::error::/'
