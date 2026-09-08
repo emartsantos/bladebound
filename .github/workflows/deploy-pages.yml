@@ -16,6 +16,10 @@ concurrency:
 
 env:
   NODE_VERSION: 22
+  # Free default Pages URL serves the project site under /bladebound/; the web
+  # build bakes this into basePath (links, /_next assets) and via
+  # NEXT_PUBLIC_BASE_PATH for raw asset paths.
+  NEXT_PUBLIC_BASE_PATH: /bladebound
 
 jobs:
   build:
