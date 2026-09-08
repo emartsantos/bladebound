@@ -7,6 +7,7 @@ import { developmentAuthClient, starterCharacter } from './development-auth-adap
 import { DEFAULT_PLAYER_CLASS } from '@/lib/classes';
 import { clearSupabaseSession, loadSupabaseSession, saveSupabaseSession, supabaseFetch, type StoredSupabaseSession } from '@/lib/supabase/session';
 import { pullSupabaseGameSave } from '@/lib/persistence/supabase-game-sync';
+import { migrateLocalGameSave } from '@/lib/persistence/local-game-persistence';
 
 interface TokenResponse { access_token: string; refresh_token: string; expires_in: number; user: { id: string; email?: string; user_metadata?: Record<string, string> } }
 interface CharacterRow { id: string; name: string; class: string; created_at: string; updated_at: string }
@@ -40,6 +41,14 @@ async function storeToken(token: TokenResponse): Promise<StoredSupabaseSession |
   const character = await ensureCharacter(token);
   if (!character) return null;
   const session: StoredSupabaseSession = { accessToken: token.access_token, refreshToken: token.refresh_token, expiresAt: Date.now() + token.expires_in * 1000, userId: token.user.id, email: token.user.email ?? '', character };
+  // Preserve progress created before Supabase auth, when registered saves were
+  // keyed by the development username or generated character id.
+  try {
+    const legacyRaw = localStorage.getItem('premium-rpg-auth');
+    const legacy = legacyRaw ? JSON.parse(legacyRaw) as { playerId?: string; characterId?: string } : null;
+    if (legacy?.playerId) migrateLocalGameSave(`account:${legacy.playerId}`, `account:${session.email}`);
+    if (legacy?.characterId) migrateLocalGameSave(legacy.characterId, `account:${session.email}`);
+  } catch { /* malformed legacy auth data is safely ignored */ }
   saveSupabaseSession(session);
   await pullSupabaseGameSave(session.email, character.id);
   return session;
