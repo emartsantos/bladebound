@@ -24,15 +24,6 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
-    version: 'v0.10.0', type: 'minor', date: '2026-09-09',
-    changes: [
-      { category: 'Added', description: 'Forgefire Festival with a seven-day UTC schedule, live countdown, Smithing progress, participation history, and reward preview' },
-      { category: 'Added', description: 'Forge Cores at 5 and 15 event points plus the exclusive Forgefire Hammer cosmetic at 30 points' },
-      { category: 'Changed', description: 'Equipment forged during the festival receives increased rarity-upgrade odds and rarity-weighted event points' },
-      { category: 'Security', description: 'Event craft receipts and milestone claims use authenticated, idempotent Supabase functions' },
-    ],
-  },
-  {
     version: 'v0.9.0', type: 'minor', date: '2026-09-09',
     changes: [
       { category: 'Added', description: 'Complete bronze-through-rune armor sets with shields, helmets, platebodies, gauntlets, platelegs, and boots' },

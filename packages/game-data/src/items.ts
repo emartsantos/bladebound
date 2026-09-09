@@ -284,16 +284,6 @@ export const VOID_PIKE: ItemDefinition = {
   acquisition: ['gathering'],
 };
 
-export const FORGE_CORE: ItemDefinition = {
-  id: 'forge_core', name: 'Forge Core', type: 'material', rarity: 'rare', stackable: true, maxStack: 99, weight: 0.5,
-  description: 'A condensed heart of forgefire used in advanced Smithing.', metadata: { source: 'event', event: 'forgefire-festival-2026' }, acquisition: ['event'],
-};
-
-export const FORGEFIRE_HAMMER_COSMETIC: ItemDefinition = {
-  id: 'forgefire_hammer_cosmetic', name: 'Forgefire Hammer', type: 'quest', rarity: 'epic', stackable: false, maxStack: 1, weight: 0,
-  description: 'An exclusive cosmetic awarded to masters of the Forgefire Festival.', metadata: { source: 'event', cosmetic: true, slot: 'smithing_tool' }, acquisition: ['event'],
-};
-
 // ─── FULL REGISTRY ───────────────────────────────────────────────────
 
 export const ALL_ITEM_DEFINITIONS: ItemDefinition[] = [
@@ -313,8 +303,6 @@ export const ALL_ITEM_DEFINITIONS: ItemDefinition[] = [
   COSMIC_CRYSTAL,
   ETHEREAL_WOOD,
   VOID_PIKE,
-  FORGE_CORE,
-  FORGEFIRE_HAMMER_COSMETIC,
 ];
 
 export const ITEM_BY_ID: Record<string, ItemDefinition> = Object.fromEntries(
