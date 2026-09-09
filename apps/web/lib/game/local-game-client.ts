@@ -45,6 +45,7 @@ import {
   reduceBuyMarketplaceListing,
   reduceSummonHero,
   reduceSummonedHeroBattle,
+  reduceChallengeEmberColossus,
 } from './service';
 
 /**
@@ -230,6 +231,7 @@ export class LocalGameClient implements GameClient {
     this.setState(reduceSummonHero(this.state, Math.random(), key), 'hero_summon');
   }
   runSummonedHeroBattle(heroId: string): void { this.setState(reduceSummonedHeroBattle(this.state, heroId), 'summoned_hero_battle'); }
+  challengeEmberColossus(): void { if (this.heroAvailable()) this.setState(reduceChallengeEmberColossus(this.state), 'ember_colossus'); }
 
   // ---- economy (shop) ----
 

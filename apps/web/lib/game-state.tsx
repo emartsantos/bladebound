@@ -58,6 +58,7 @@ export interface GameContextValue {
   reforgeHero: () => void;
   summonHero: () => void;
   runSummonedHeroBattle: (heroId: string) => void;
+  challengeEmberColossus: () => void;
   buyShopItem: (shopItemId: string) => void;
   sellItem: (itemId: string) => void;
   createMarketplaceListing: (assetType: MarketplaceAssetType, assetId: string, price: number) => void;
@@ -203,6 +204,7 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
   const reforgeHero = useCallback(() => run((c) => c.reforgeHero()), [run]);
   const summonHero = useCallback(() => run((c) => c.summonHero()), [run]);
   const runSummonedHeroBattle = useCallback((heroId: string) => run((c) => c.runSummonedHeroBattle(heroId)), [run]);
+  const challengeEmberColossus = useCallback(() => run((c) => c.challengeEmberColossus()), [run]);
 
   const buyShopItem = useCallback((shopItemId: string) => run((c) => c.buyShopItem(shopItemId)), [run]);
   const sellItem = useCallback((itemId: string) => run((c) => c.sellItem(itemId)), [run]);
@@ -254,6 +256,7 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
         reforgeHero,
         summonHero,
         runSummonedHeroBattle,
+        challengeEmberColossus,
         buyShopItem,
         sellItem,
         createMarketplaceListing,

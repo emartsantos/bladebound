@@ -44,6 +44,7 @@ export interface GameClient {
   reforgeHero(): void;
   summonHero(): void;
   runSummonedHeroBattle(heroId: string): void;
+  challengeEmberColossus(): void;
 
   buyShopItem(shopItemId: string): void;
   sellItem(itemId: string): void;

@@ -97,7 +97,7 @@ import { baseStatsForLevel, cumulativeXpForLevel } from '@/lib/player-summary';
 import { itemName, itemHeal } from '@/lib/item-names';
 import { GAME_SAVE_SCHEMA_VERSION, type EconomyTransaction, type GamePersistence, type GameSaveData } from '@/lib/persistence/game-persistence';
 import type { DungeonCombatSlice } from '@/lib/persistence/game-persistence';
-import type { DailyBattleState, BattleHistoryEntry } from '@/lib/persistence/game-persistence';
+import type { DailyBattleState, BattleHistoryEntry, EmberColossusEventState } from '@/lib/persistence/game-persistence';
 import type { RetentionState, InvestmentState, InvestmentRecord, MarketplaceAssetType, MarketplaceListing, MarketplaceState, SummonClass, SummonRarity, SummoningState } from '@/lib/persistence/game-persistence';
 import { COMBAT_LEVEL_CAP, derivedCombatStats } from '@/lib/combat-progression';
 
@@ -113,6 +113,46 @@ export const SUMMON_COST = 1;
 export const SUMMON_BURN = 0.5;
 export const SUMMON_REWARD_POOL = 0.4;
 export const SUMMON_TREASURY = 0.1;
+export const EMBER_COLOSSUS_START = Date.UTC(2026, 8, 9);
+export const EMBER_COLOSSUS_END = Date.UTC(2026, 8, 16);
+export const EMBER_COLOSSUS_BHC_REWARD = 0.25;
+
+export function emberEventDay(now = Date.now()): string {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+export function emberEventActive(now = Date.now()): boolean {
+  return now >= EMBER_COLOSSUS_START && now < EMBER_COLOSSUS_END;
+}
+
+export function reduceChallengeEmberColossus(prev: GameState, roll = Math.random(), now = Date.now()): GameState {
+  const day = emberEventDay(now);
+  if (!emberEventActive(now) || prev.emberColossus.attemptsByDay[day] || prev.marketplace.heroLocked) return prev;
+  const victory = roll < Math.min(0.95, 0.35 + prev.combatLevel * 0.01);
+  let inventory = prev.inventory;
+  let bhc = prev.investment.bhc;
+  let weaponClaimed = prev.emberColossus.weaponClaimed;
+  const gains: GainFeed[] = [{ id: nextId(), text: victory ? 'The Ember Colossus falls!' : 'The Colossus drove you back.', kind: victory ? 'rare' : 'info' }];
+  if (victory) {
+    inventory = addInventory(inventory, 'coal', 10);
+    inventory = addInventory(inventory, 'iron_ore', 5);
+    bhc += EMBER_COLOSSUS_BHC_REWARD;
+    gains.push({ id: nextId(), text: `+${EMBER_COLOSSUS_BHC_REWARD.toFixed(2)} BHC · 10 Coal · 5 Iron Ore`, kind: 'rare' });
+    if (!weaponClaimed) {
+      inventory = addInventory(inventory, 'ember_colossus_greatsword', 1);
+      weaponClaimed = true;
+      gains.push({ id: nextId(), text: 'Epic Ember Colossus Greatsword', kind: 'rare' });
+    }
+  }
+  return {
+    ...prev, inventory, investment: { ...prev.investment, bhc }, gains: pushGains(prev.gains, gains),
+    emberColossus: {
+      attemptsByDay: { ...prev.emberColossus.attemptsByDay, [day]: true },
+      victories: prev.emberColossus.victories + (victory ? 1 : 0), weaponClaimed,
+      history: [{ day, victory, createdAt: now }, ...prev.emberColossus.history].slice(0, 7),
+    },
+  };
+}
 export const SUMMONED_HERO_BATTLE_CAP = 5;
 
 // Starter satchel for a brand-new save (no save file yet). Enough ore to try
@@ -213,6 +253,7 @@ export interface GameState {
   investment: InvestmentState;
   marketplace: MarketplaceState;
   summoning: SummoningState;
+  emberColossus: EmberColossusEventState;
 }
 
 export interface SkillView {
@@ -429,6 +470,7 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     investment: save?.investment ?? { bhc: 0, burnedTotal: 0, heroRebirth: 0, heroReforge: 0, heroBonusStat: null, heroBonusValue: 0, history: [] },
     marketplace: seedMarketplace(save?.marketplace),
     summoning: seedSummoning(save?.summoning),
+    emberColossus: save?.emberColossus ?? { attemptsByDay: {}, victories: 0, weaponClaimed: false, history: [] },
   };
 }
 
@@ -499,6 +541,7 @@ export function gameToSaveData(state: GameState): GameSaveData {
     investment: state.investment,
     marketplace: state.marketplace,
     summoning: state.summoning,
+    emberColossus: state.emberColossus,
   };
 }
 

@@ -1,7 +1,7 @@
 import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, PlayerTaskState, PlayerQuestState, PlayerAchievementState, PlayerCollectionState, BestiaryState, Rarity } from '@premium-rpg/shared-types';
 import type { ActiveAction, QueuedAction } from '@/lib/game/service';
 
-export const GAME_SAVE_SCHEMA_VERSION = 8;
+export const GAME_SAVE_SCHEMA_VERSION = 9;
 
 export type ForgedEquipmentRarities = Record<string, Rarity[]>;
 
@@ -152,6 +152,13 @@ export interface SummoningState {
   battlesToday: number;
 }
 
+export interface EmberColossusEventState {
+  attemptsByDay: Record<string, boolean>;
+  victories: number;
+  weaponClaimed: boolean;
+  history: Array<{ day: string; victory: boolean; createdAt: number }>;
+}
+
 /**
  * The authoritative fields of a game save. Carried by every persistence
  * implementation; clients never write this shape directly except through a
@@ -194,6 +201,7 @@ export interface GameSaveData {
   investment?: InvestmentState;
   marketplace?: MarketplaceState;
   summoning?: SummoningState;
+  emberColossus?: EmberColossusEventState;
 }
 
 /** Upgrade older browser/cloud saves without discarding valid zero balances. */

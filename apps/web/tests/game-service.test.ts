@@ -48,6 +48,8 @@ import {
   SUMMON_TREASURY,
   MAX_OFFLINE_CATCHUP_PER_TICK,
   rollForgedRarity,
+  reduceChallengeEmberColossus,
+  EMBER_COLOSSUS_START,
 } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { getCurrentTasks, levelForXp } from '@premium-rpg/game-engine';
@@ -108,6 +110,26 @@ describe('smithing equipment rarity', () => {
     expect(equipped.forgedEquipmentRarities.bronze_sword).toBeUndefined();
     const unequipped = reduceUnequipItem(equipped, 'weapon');
     expect(unequipped.forgedEquipmentRarities.bronze_sword).toEqual(['epic']);
+  });
+});
+
+describe('Ember Colossus event', () => {
+  it('grants the exclusive weapon and daily rewards on a first victory', () => {
+    const won = reduceChallengeEmberColossus(mergeSeed(makeConfig()), 0, EMBER_COLOSSUS_START + 1);
+    expect(won.inventory.ember_colossus_greatsword).toBe(1);
+    expect(won.inventory.coal).toBeGreaterThanOrEqual(10);
+    expect(won.emberColossus.weaponClaimed).toBe(true);
+    expect(won.investment.bhc).toBe(0.25);
+  });
+
+  it('allows only one attempt per UTC day', () => {
+    const first = reduceChallengeEmberColossus(mergeSeed(makeConfig()), 1, EMBER_COLOSSUS_START + 1);
+    expect(reduceChallengeEmberColossus(first, 0, EMBER_COLOSSUS_START + 2)).toBe(first);
+  });
+
+  it('rejects attempts after the seven-day window', () => {
+    const base = mergeSeed(makeConfig());
+    expect(reduceChallengeEmberColossus(base, 0, EMBER_COLOSSUS_START + 8 * 86_400_000)).toBe(base);
   });
 });
 
