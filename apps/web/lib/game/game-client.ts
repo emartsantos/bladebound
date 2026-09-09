@@ -1,5 +1,5 @@
 import type { SkillId, EquipmentSlot, Rarity } from '@premium-rpg/shared-types';
-import type { GameState } from './service';
+import type { GameState, SummonDescriptor } from './service';
 import type { MarketplaceAssetType } from '@/lib/persistence/game-persistence';
 
 /**
@@ -42,7 +42,8 @@ export interface GameClient {
   rerollWeapon(): void;
   rebirthHero(): void;
   reforgeHero(): void;
-  summonHero(): void;
+  /** Roll and settle a summon. Returns the roll descriptor (null when blocked). */
+  summonHero(): SummonDescriptor | null;
   runSummonedHeroBattle(heroId: string): void;
   challengeEmberColossus(): void;
 

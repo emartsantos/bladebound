@@ -1505,6 +1505,9 @@ export function reduceReforgeHero(prev: GameState): GameState {
 
 // ─── SUMMONING ──────────────────────────────────────────────────
 
+/** Account hero roster cap (free starter + up to 4 summoned). */
+export const HERO_CAP = 5;
+
 export const SUMMON_RARITY_ODDS: ReadonlyArray<{ rarity: SummonRarity; chance: number }> = [
   { rarity: 'common', chance: 0.55 },
   { rarity: 'uncommon', chance: 0.27 },
@@ -1531,23 +1534,67 @@ export function summonRarityForRoll(roll: number, pity: number, totalSummons: nu
   return rarity;
 }
 
-/** One summon, one idempotency key, and the complete 50/40/10 settlement. */
-export function reduceSummonHero(prev: GameState, roll: number, idempotencyKey: string): GameState {
-  if (!idempotencyKey || !Number.isFinite(roll) || roll < 0 || roll >= 1 || prev.investment.bhc + 0.000001 < SUMMON_COST) return prev;
-  if (prev.summoning.history.some((entry) => entry.idempotencyKey === idempotencyKey)) return prev;
-  const rarity = summonRarityForRoll(roll, prev.summoning.pity, prev.summoning.totalSummons);
+/** The playable class a summoned hero actually fights as ('assassin'/'knight'
+ * are flavor classes only — the combat engine supports warrior/ranger/mage). */
+export function heroPlayerClass(heroClass: SummonClass): 'warrior' | 'ranger' | 'mage' {
+  return heroClass === 'assassin' || heroClass === 'knight' ? 'warrior' : heroClass;
+}
+
+export interface SummonDescriptor {
+  summonId: string;
+  characterId: string;
+  archetypeId: string;
+  name: string;
+  class: SummonClass;
+  playerClass: 'warrior' | 'ranger' | 'mage';
+  rarity: SummonRarity;
+  variation: number;
+  duplicate: boolean;
+  essenceGain: number;
+  createdAt: number;
+}
+
+/**
+ * Deterministic description of one summon roll. Ids are derived from the roll
+ * and a supplied createdAt so the reducer (which owns the ledger) and the
+ * caller (which materializes the account roster hero) stay in sync without
+ * any shared mutable state.
+ */
+export function rollSummonDescriptor(roll: number, pity: number, totalSummons: number, heroes: SummoningState['heroes'], createdAt = Date.now()): SummonDescriptor {
+  const rarity = summonRarityForRoll(roll, pity, totalSummons);
   const classIndex = Math.floor((roll * 100_003) % SUMMON_CLASSES.length);
   const heroClass = SUMMON_CLASSES[classIndex];
   const variation = Math.floor((roll * 10_007) % 5) + 1;
   const archetypeId = `${heroClass}-${rarity}-${variation}`;
-  const heroName = SUMMON_NAMES[heroClass][variation - 1];
-  const existing = prev.summoning.heroes.find((hero) => hero.archetypeId === archetypeId);
-  const essenceGain = existing ? DUPLICATE_ESSENCE[rarity] : 0;
-  const createdAt = Date.now();
+  const name = SUMMON_NAMES[heroClass][variation - 1];
+  const existing = heroes.some((hero) => hero.archetypeId === archetypeId);
+  const bucket = Math.floor(roll * 100_000_007) % 1_000_000;
+  return {
+    summonId: `summoned-${createdAt}-${bucket}`,
+    characterId: `char-${createdAt}-${bucket}`,
+    archetypeId,
+    name,
+    class: heroClass,
+    playerClass: heroPlayerClass(heroClass),
+    rarity,
+    variation,
+    duplicate: existing,
+    essenceGain: existing ? DUPLICATE_ESSENCE[rarity] : 0,
+    createdAt,
+  };
+}
+
+/** One summon, one idempotency key, and the complete 50/40/10 settlement. */
+export function reduceSummonHero(prev: GameState, roll: number, idempotencyKey: string, createdAt = Date.now()): GameState {
+  if (!idempotencyKey || !Number.isFinite(roll) || roll < 0 || roll >= 1 || prev.investment.bhc + 0.000001 < SUMMON_COST) return prev;
+  if (prev.summoning.history.some((entry) => entry.idempotencyKey === idempotencyKey)) return prev;
+  const rollResult = rollSummonDescriptor(roll, prev.summoning.pity, prev.summoning.totalSummons, prev.summoning.heroes, createdAt);
+  const existing = rollResult.duplicate;
+  const essenceGain = rollResult.essenceGain;
   const heroes = existing
-    ? prev.summoning.heroes.map((hero) => hero.archetypeId === archetypeId ? { ...hero, copies: hero.copies + 1, essence: hero.essence + essenceGain } : hero)
-    : [...prev.summoning.heroes, { id: `summoned-${createdAt}-${nextId()}`, archetypeId, name: heroName, class: heroClass, rarity, variation, copies: 1, essence: 0, summonedAt: createdAt, nextBattleAt: 0 }];
-  const history = [{ id: `summon-${createdAt}-${nextId()}`, idempotencyKey, archetypeId, heroName, rarity, heroClass, duplicate: Boolean(existing), roll, createdAt }, ...prev.summoning.history].slice(0, 100);
+    ? prev.summoning.heroes.map((hero) => hero.archetypeId === rollResult.archetypeId ? { ...hero, copies: hero.copies + 1, essence: hero.essence + essenceGain } : hero)
+    : [...prev.summoning.heroes, { id: rollResult.summonId, characterId: rollResult.characterId, archetypeId: rollResult.archetypeId, name: rollResult.name, class: rollResult.class, rarity: rollResult.rarity, variation: rollResult.variation, copies: 1, essence: 0, summonedAt: createdAt, nextBattleAt: 0 }];
+  const history = [{ id: `summon-${createdAt}-${Math.floor(roll * 1_000_003) % 100_000}`, idempotencyKey, archetypeId: rollResult.archetypeId, heroName: rollResult.name, rarity: rollResult.rarity, heroClass: rollResult.class, duplicate: existing, roll, createdAt }, ...prev.summoning.history].slice(0, 100);
   return {
     ...prev,
     investment: {
@@ -1557,12 +1604,12 @@ export function reduceSummonHero(prev: GameState, roll: number, idempotencyKey: 
     },
     summoning: {
       ...prev.summoning, heroes, history, totalSummons: prev.summoning.totalSummons + 1,
-      pity: rarity === 'legendary' ? 0 : prev.summoning.pity + 1,
+      pity: rollResult.rarity === 'legendary' ? 0 : prev.summoning.pity + 1,
       essence: prev.summoning.essence + essenceGain,
       rewardPool: Math.round((prev.summoning.rewardPool + SUMMON_REWARD_POOL) * 1000) / 1000,
       treasury: Math.round((prev.summoning.treasury + SUMMON_TREASURY) * 1000) / 1000,
     },
-    gains: pushGains(prev.gains, [{ id: nextId(), text: existing ? `${heroName} duplicate · +${essenceGain} essence` : `${rarity} ${heroName} summoned`, kind: rarity === 'epic' || rarity === 'legendary' ? 'rare' : 'item' }]),
+    gains: pushGains(prev.gains, [{ id: nextId(), text: existing ? `${rollResult.name} duplicate · +${essenceGain} essence` : `${rollResult.rarity} ${rollResult.name} summoned`, kind: rollResult.rarity === 'epic' || rollResult.rarity === 'legendary' ? 'rare' : 'item' }]),
   };
 }
 

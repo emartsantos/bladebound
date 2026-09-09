@@ -15,6 +15,7 @@ import type {
 } from '@premium-rpg/shared-types';
 import { migrateSave, SAVE_SCHEMA_VERSION, validateSaveVersion } from '@premium-rpg/game-data';
 import { checkSaveCorruption, provideSaveFallback, computeSaveChecksum } from '@premium-rpg/validation';
+import { HERO_CAP } from '@/lib/game/service';
 import { DEFAULT_STARTING_GOLD } from '@/lib/player-summary';
 import { getPlayerClass, DEFAULT_PLAYER_CLASS } from '@/lib/classes';
 import type { PlayerClassId } from '@/lib/classes';
@@ -175,6 +176,7 @@ export const starterCharacter = (id: string, name: string, characterClass: Playe
     region: 'starter-frontier',
     avatar: '',
     class: def.id,
+    rarity: 'common',
     gold: DEFAULT_STARTING_GOLD,
     skills,
     equipment: starterEquipment(characterClass),
@@ -254,16 +256,19 @@ async function createCharacter(request: CreateCharacterRequest): Promise<CreateC
     return { success: false, error: 'User not found' };
   }
 
-  if (user.characters.length >= 3) {
-    return { success: false, error: 'Maximum characters reached' };
+  if (user.characters.length >= HERO_CAP) {
+    return { success: false, error: `Maximum of ${HERO_CAP} heroes reached` };
   }
 
   const character: CharacterMetadata = starterCharacter(
-    `char-${Date.now()}`,
+    request.id ?? `char-${Date.now()}`,
     request.name,
     request.class as PlayerClassId | undefined,
   );
+  character.rarity = request.rarity ?? 'common';
+  if (request.summonId) character.summonId = request.summonId;
   user.characters.push(character);
+  saveAuthToStorage({ ...persist, characterId: character.id });
   saveAccountSnapshot(persist.playerId, { character, savedAt: Date.now() });
 
   return { success: true, character };

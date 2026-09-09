@@ -34,7 +34,7 @@ export const SECTION_META: Record<SectionId, { label: string }> = {
   inventory: { label: 'Inventory' },
   equipment: { label: 'Equipment' },
   crafting: { label: 'Crafting' },
-  summoning: { label: 'Summoning' },
+  summoning: { label: 'Heroes' },
   dungeons: { label: 'Dungeons' },
   quests: { label: 'Quests' },
   tasks: { label: 'Tasks' },

@@ -67,7 +67,7 @@ const NAV_ENTRIES: Record<SectionId, NavEntry> = {
   inventory: { id: 'inventory', icon: LuBackpack, description: 'Items and materials' },
   equipment: { id: 'equipment', icon: LuSword, description: 'Character loadout' },
   crafting: { id: 'crafting', icon: LuHammer, description: 'Production and recipes' },
-  summoning: { id: 'summoning', icon: LuSparkles, description: 'Summon and command collectible Heroes' },
+  summoning: { id: 'summoning', icon: LuSparkles, description: 'Your hero roster — summon, create, and grow up to 5 heroes' },
   dungeons: { id: 'dungeons', icon: LuFlame, description: 'Dungeon runs' },
   quests: { id: 'quests', icon: LuScrollText, description: 'Quest journal' },
   tasks: { id: 'tasks', icon: LuClipboardList, description: 'Daily and weekly objectives' },

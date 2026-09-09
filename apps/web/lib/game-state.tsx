@@ -10,8 +10,8 @@ import type { ReactNode } from 'react';
 import type { SkillId, FoodItem, BaseStats, EquipmentSlot, Rarity } from '@premium-rpg/shared-types';
 import type { GameClient } from './game/game-client';
 import { LocalGameClient } from './game/local-game-client';
-import { mergeSeed, xpStepForLevel } from './game/service';
-import type { GameState, ActiveAction, QueuedAction, ActionLogEntry, GainFeed, CombatView, SkillView } from './game/service';
+import { mergeSeed, HERO_CAP, xpStepForLevel } from './game/service';
+import type { GameState, ActiveAction, QueuedAction, ActionLogEntry, GainFeed, CombatView, SkillView, SummonDescriptor } from './game/service';
 import { levelForXp } from '@premium-rpg/game-engine';
 import { usePlayer } from './use-player';
 import { useAuth } from '@/context/auth-context';
@@ -56,7 +56,7 @@ export interface GameContextValue {
   rerollWeapon: () => void;
   rebirthHero: () => void;
   reforgeHero: () => void;
-  summonHero: () => void;
+  summonHero: () => Promise<SummonDescriptor | null>;
   runSummonedHeroBattle: (heroId: string) => void;
   challengeEmberColossus: () => void;
   buyShopItem: (shopItemId: string) => void;
@@ -80,7 +80,7 @@ export function useGame(): GameContextValue {
 
 export function GameProvider({ children, resetNonce }: { children: ReactNode; resetNonce?: number }) {
   const { player } = usePlayer();
-  const { state: authState } = useAuth();
+  const { state: authState, createCharacter } = useAuth();
   const { addNotification } = useNotifications();
   // Registered saves use the account name instead of a generated character
   // id, so a rebuilt deployment or restored character snapshot cannot point
@@ -202,7 +202,25 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
   const rerollWeapon = useCallback(() => run((c) => c.rerollWeapon()), [run]);
   const rebirthHero = useCallback(() => run((c) => c.rebirthHero()), [run]);
   const reforgeHero = useCallback(() => run((c) => c.reforgeHero()), [run]);
-  const summonHero = useCallback(() => run((c) => c.summonHero()), [run]);
+  const summonHero = useCallback(async (): Promise<SummonDescriptor | null> => {
+    if (authState.isGuest) return null;
+    if ((authState.characters?.length ?? 1) >= HERO_CAP) return null;
+    const client = clientRef.current;
+    if (!client) return null;
+    const descriptor = client.summonHero();
+    if (!descriptor) return null;
+    if (!descriptor.duplicate) {
+      const created = await createCharacter({
+        id: descriptor.characterId,
+        name: descriptor.name,
+        class: descriptor.playerClass,
+        rarity: descriptor.rarity,
+        summonId: descriptor.summonId,
+      });
+      if (!created.success) return null;
+    }
+    return descriptor;
+  }, [createCharacter, authState.characters]);
   const runSummonedHeroBattle = useCallback((heroId: string) => run((c) => c.runSummonedHeroBattle(heroId)), [run]);
   const challengeEmberColossus = useCallback(() => run((c) => c.challengeEmberColossus()), [run]);
 

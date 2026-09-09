@@ -129,6 +129,8 @@ export interface SummonedHero {
   essence: number;
   summonedAt: number;
   nextBattleAt: number;
+  /** Roster hero created for this summon ('char-…'). Null for legacy records. */
+  characterId: string | null;
 }
 
 export interface SummonHistoryEntry {

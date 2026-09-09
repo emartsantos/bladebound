@@ -3,7 +3,7 @@
 import type { SkillId, EquipmentSlot } from '@premium-rpg/shared-types';
 import type { GameClient } from './game-client';
 import type { GamePersistence } from '@/lib/persistence/game-persistence';
-import type { GameState, SeedConfig } from './service';
+import type { GameState, SeedConfig, SummonDescriptor } from './service';
 import type { EconomyTransaction } from '@/lib/persistence/game-persistence';
 import type { MarketplaceAssetType } from '@/lib/persistence/game-persistence';
 import {
@@ -43,8 +43,9 @@ import {
   reduceCreateMarketplaceListing,
   reduceCancelMarketplaceListing,
   reduceBuyMarketplaceListing,
-  reduceSummonHero,
+  reduceSummonHero, SUMMON_COST,
   reduceSummonedHeroBattle,
+  rollSummonDescriptor,
   reduceChallengeEmberColossus,
 } from './service';
 
@@ -226,9 +227,14 @@ export class LocalGameClient implements GameClient {
   rerollWeapon(): void { if (this.heroAvailable()) this.setState(reduceRerollWeapon(this.state), 'weapon_reroll'); }
   rebirthHero(): void { if (this.heroAvailable()) this.setState(reduceRebirthHero(this.state), 'hero_rebirth'); }
   reforgeHero(): void { if (this.heroAvailable()) this.setState(reduceReforgeHero(this.state), 'hero_reforge'); }
-  summonHero(): void {
-    const key = `summon:${this.config.playerId}:${Date.now()}:${crypto.randomUUID()}`;
-    this.setState(reduceSummonHero(this.state, Math.random(), key), 'hero_summon');
+  summonHero(): SummonDescriptor | null {
+    if (!this.heroAvailable() || this.state.investment.bhc + 0.000001 < SUMMON_COST) return null;
+    const roll = Math.random();
+    const now = Date.now();
+    const descriptor = rollSummonDescriptor(roll, this.state.summoning.pity, this.state.summoning.totalSummons, this.state.summoning.heroes, now);
+    const key = `summon:${this.config.playerId}:${now}:${crypto.randomUUID()}`;
+    this.setState(reduceSummonHero(this.state, roll, key, now), 'hero_summon');
+    return descriptor;
   }
   runSummonedHeroBattle(heroId: string): void { this.setState(reduceSummonedHeroBattle(this.state, heroId), 'summoned_hero_battle'); }
   challengeEmberColossus(): void { if (this.heroAvailable()) this.setState(reduceChallengeEmberColossus(this.state), 'ember_colossus'); }

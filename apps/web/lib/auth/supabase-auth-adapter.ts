@@ -8,13 +8,14 @@ import { DEFAULT_PLAYER_CLASS } from '@/lib/classes';
 import { clearSupabaseSession, loadSupabaseSession, saveSupabaseSession, supabaseFetch, type StoredSupabaseSession } from '@/lib/supabase/session';
 import { pullSupabaseGameSave } from '@/lib/persistence/supabase-game-sync';
 import { migrateLocalGameSave } from '@/lib/persistence/local-game-persistence';
+import { HERO_CAP } from '@/lib/game/service';
 
 interface TokenResponse { access_token: string; refresh_token: string; expires_in: number; user: { id: string; email?: string; user_metadata?: Record<string, string> } }
-interface CharacterRow { id: string; name: string; class: string; created_at: string; updated_at: string }
+interface CharacterRow { id: string; name: string; class: string; rarity: string | null; created_at: string; updated_at: string }
 
 const emptyState = (): AuthState => ({ isAuthenticated: false, isGuest: false, session: null, guestSession: null, character: null, loading: false });
 const authSession = (s: StoredSupabaseSession): AuthSession => ({ token: s.accessToken, playerId: s.email, createdAt: 0, expiresAt: s.expiresAt, guest: false });
-const characterFromRow = (row: CharacterRow): CharacterMetadata => ({ ...starterCharacter(row.id, row.name, row.class as PlayerClassId), createdAt: Date.parse(row.created_at), lastPlayedAt: Date.parse(row.updated_at) });
+const characterFromRow = (row: CharacterRow): CharacterMetadata => ({ ...starterCharacter(row.id, row.name, row.class as PlayerClassId), rarity: (row.rarity as CharacterMetadata['rarity']) ?? 'common', createdAt: Date.parse(row.created_at), lastPlayedAt: Date.parse(row.updated_at) });
 
 async function readError(response: Response): Promise<string> {
   try { const body = await response.json() as { msg?: string; message?: string; error_description?: string }; return body.msg ?? body.message ?? body.error_description ?? 'Authentication failed'; }
@@ -22,14 +23,14 @@ async function readError(response: Response): Promise<string> {
 }
 
 async function ensureCharacters(token: TokenResponse, preferredId?: string): Promise<{ active: CharacterMetadata; characters: CharacterMetadata[] } | null> {
-  const rowsResponse = await supabaseFetch('/rest/v1/characters?select=id,name,class,created_at,updated_at&archived_at=is.null&order=created_at.asc&limit=3', {}, token.access_token);
+  const rowsResponse = await supabaseFetch(`/rest/v1/characters?select=id,name,class,rarity,created_at,updated_at&archived_at=is.null&order=created_at.asc&limit=${HERO_CAP}`, {}, token.access_token);
   if (!rowsResponse.ok) return null;
   let rows = await rowsResponse.json() as CharacterRow[];
   if (!rows.length) {
     const metadata = token.user.user_metadata ?? {};
     const insert = await supabaseFetch('/rest/v1/characters', {
       method: 'POST', headers: { Prefer: 'return=representation' },
-      body: JSON.stringify({ owner_id: token.user.id, name: metadata.username ?? token.user.email?.split('@')[0] ?? 'Hunter', class: metadata.character_class ?? DEFAULT_PLAYER_CLASS }),
+      body: JSON.stringify({ owner_id: token.user.id, name: metadata.username ?? token.user.email?.split('@')[0] ?? 'Hunter', class: metadata.character_class ?? DEFAULT_PLAYER_CLASS, rarity: 'common' }),
     }, token.access_token);
     if (!insert.ok) return null;
     rows = await insert.json() as CharacterRow[];
@@ -87,7 +88,7 @@ async function restoreSession(): Promise<AuthState> {
     stored = await storeToken(await response.json() as TokenResponse);
     if (!stored) return emptyState();
   }
-  const rosterResponse = await supabaseFetch('/rest/v1/characters?select=id,name,class,created_at,updated_at&archived_at=is.null&order=created_at.asc&limit=3', {}, stored.accessToken);
+  const rosterResponse = await supabaseFetch(`/rest/v1/characters?select=id,name,class,rarity,created_at,updated_at&archived_at=is.null&order=created_at.asc&limit=${HERO_CAP}`, {}, stored.accessToken);
   if (rosterResponse.ok) {
     const characters = (await rosterResponse.json() as CharacterRow[]).map(characterFromRow);
     if (characters.length) {
@@ -102,8 +103,8 @@ async function restoreSession(): Promise<AuthState> {
 
 async function createCharacter(request: CreateCharacterRequest): Promise<CreateCharacterResponse> {
   const stored = loadSupabaseSession(); if (!stored) return { success: false, error: 'Not authenticated' };
-  if ((stored.characters?.length ?? 1) >= 3) return { success: false, error: 'All 3 hero slots are occupied' };
-  const response = await supabaseFetch('/rest/v1/characters', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ owner_id: stored.userId, name: request.name, class: request.class ?? DEFAULT_PLAYER_CLASS }) }, stored.accessToken);
+  if ((stored.characters?.length ?? 1) >= HERO_CAP) return { success: false, error: `All ${HERO_CAP} hero slots are occupied` };
+  const response = await supabaseFetch('/rest/v1/characters', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ owner_id: stored.userId, name: request.name, class: request.class ?? DEFAULT_PLAYER_CLASS, rarity: request.rarity ?? 'common', summon_id: request.summonId ?? null }) }, stored.accessToken);
   if (!response.ok) return { success: false, error: await readError(response) };
   const row = (await response.json() as CharacterRow[])[0];
   if (!row) return { success: false, error: 'Character could not be created' };

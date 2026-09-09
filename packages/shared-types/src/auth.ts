@@ -36,6 +36,10 @@ export interface GuestSessionData {
   saveState: SaveSnapshot;
 }
 
+// A hero's rarity. Rarity tiers are shared with item rarity treatments and
+// the summoning roll table so summoned heroes slim into the account roster.
+export type HeroRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+
 // Character metadata - extended from existing types
 export interface CharacterMetadata {
   id: string;
@@ -49,6 +53,10 @@ export interface CharacterMetadata {
   avatar: string;
   class?: string;
   gold?: number;
+  /** Hero rarity. Free starter heroes roll as common; summoned heroes keep their roll. */
+  rarity?: HeroRarity;
+  /** Summon record id that created this hero (absent for free starter heroes). */
+  summonId?: string;
   skills: Record<string, number>;
   equipment: {
     [slot in 'weapon' | 'offhand' | 'helmet' | 'chest' | 'gloves' | 'legs' | 'boots' | 'amulet' | 'ring' | 'cape']: {
@@ -71,6 +79,10 @@ export type CharacterId = string;
 export interface CreateCharacterRequest {
   name: string;
   class?: string;
+  /** Optional durable id (kept in sync with a summon record). */
+  id?: string;
+  rarity?: HeroRarity;
+  summonId?: string;
 }
 
 export interface CreateCharacterResponse {

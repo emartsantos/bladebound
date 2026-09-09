@@ -42,6 +42,9 @@ import {
   reduceSummonHero,
   reduceSummonedHeroBattle,
   summonRarityForRoll,
+  rollSummonDescriptor,
+  heroPlayerClass,
+  HERO_CAP,
   SUMMON_COST,
   SUMMON_BURN,
   SUMMON_REWARD_POOL,
@@ -726,6 +729,30 @@ describe('v0.6 summoning', () => {
     expect(battled.summoning.rewardPool).toBeLessThan(summoned.summoning.rewardPool);
     expect(battled.summoning.heroes[0].nextBattleAt).toBe(now + 86_400_000);
     expect(reduceSummonedHeroBattle(battled, hero.id, now)).toBe(battled);
+  });
+
+  it('describes a roll deterministically so roster heroes match ledger records', () => {
+    const state = funded();
+    const first = rollSummonDescriptor(0.9, state.summoning.pity, state.summoning.totalSummons, state.summoning.heroes, 1_700_000_000_000);
+    const second = rollSummonDescriptor(0.9, state.summoning.pity, state.summoning.totalSummons, state.summoning.heroes, 1_700_000_000_000);
+    expect(second).toEqual(first);
+    expect(first.characterId).toMatch(/^char-/);
+    expect(first.summonId).toMatch(/^summoned-/);
+    const reduced = reduceSummonHero(state, 0.9, 'summon-descriptor', 1_700_000_000_000);
+    expect(reduced.summoning.heroes[0].id).toBe(first.summonId);
+    expect(reduced.summoning.heroes[0].characterId).toBe(first.characterId);
+    expect(first.duplicate).toBe(false);
+    const dup = rollSummonDescriptor(0.9, reduced.summoning.pity, reduced.summoning.totalSummons, reduced.summoning.heroes, 1_700_000_000_001);
+    expect(dup.duplicate).toBe(true);
+    expect(dup.essenceGain).toBeGreaterThan(0);
+  });
+
+  it('exposes a 5-hero roster cap and maps flavor classes to playable ones', () => {
+    expect(HERO_CAP).toBe(5);
+    expect(heroPlayerClass('mage')).toBe('mage');
+    expect(heroPlayerClass('ranger')).toBe('ranger');
+    expect(heroPlayerClass('assassin')).toBe('warrior');
+    expect(heroPlayerClass('knight')).toBe('warrior');
   });
 });
 
