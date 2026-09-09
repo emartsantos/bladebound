@@ -17,6 +17,24 @@ export interface AccountWallet {
   burnedTotal: number;
 }
 
+const WALLET_CACHE_PREFIX = 'premium-rpg:wallet:';
+const walletCacheKey = (userId: string): string => `${WALLET_CACHE_PREFIX}${userId}`;
+
+function cacheWallet(userId: string, wallet: AccountWallet): void {
+  try { localStorage.setItem(walletCacheKey(userId), JSON.stringify(wallet)); } catch { /* ignore */ }
+}
+
+/** Synchronous read of the last wallet the browser knew about (no network). */
+export function cachedWallet(userId: string): AccountWallet | null {
+  try {
+    const raw = localStorage.getItem(walletCacheKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<AccountWallet> | null;
+    if (!parsed || typeof parsed.balance !== 'number' || typeof parsed.burnedTotal !== 'number') return null;
+    return { balance: parsed.balance, burnedTotal: parsed.burnedTotal };
+  } catch { return null; }
+}
+
 function emptyInvestment(): InvestmentState {
   return { bhc: 0, burnedTotal: 0, heroRebirth: 0, heroReforge: 0, heroBonusStat: null, heroBonusValue: 0, history: [] };
 }
@@ -38,7 +56,9 @@ async function fetchAccountWallet(ownerId: string, token: string): Promise<Accou
   const rows = await response.json().catch(() => null) as Array<{ balance: number | string; burned_total: number | string }> | null;
   const row = rows?.[0];
   if (!row) return null;
-  return { balance: Number(row.balance) || 0, burnedTotal: Number(row.burned_total) || 0 };
+  const wallet = { balance: Number(row.balance) || 0, burnedTotal: Number(row.burned_total) || 0 };
+  cacheWallet(ownerId, wallet);
+  return wallet;
 }
 
 async function upsertAccountWallet(ownerId: string, token: string, balance: number, burnedTotal: number, grantsSeenAt: string | null): Promise<void> {
@@ -71,12 +91,63 @@ function scheduleWalletMirror(balance: number, burnedTotal: number): void {
     void upsertAccountWallet(userId, accessToken, balance, burnedTotal, stamp).then(() => {
       lastSyncedBhc = Math.round(balance * 1000) / 1000;
       lastSyncedBurned = Math.round(burnedTotal * 1000) / 1000;
+      cacheWallet(userId, { balance: lastSyncedBhc, burnedTotal: lastSyncedBurned });
     }).catch(() => { /* the grants guard may reject; the next claim fixes the stamp */ });
   }, 900);
 }
 
 function replaceInvestment(save: GameSaveData, wallet: AccountWallet): GameSaveData {
   return { ...save, investment: { ...(save.investment ?? emptyInvestment()), bhc: wallet.balance, burnedTotal: wallet.burnedTotal } };
+}
+
+function loadSessionWallet(): AccountWallet | null {
+  const session = loadSupabaseSession();
+  if (!session?.userId) return null;
+  const wallet = cachedWallet(session.userId);
+  return wallet;
+}
+
+/** Apply the account wallet to one character's local save (cache first, then cloud). */
+export async function applyWalletToLocalSave(characterId: string): Promise<boolean> {
+  const key = `character:${characterId}`;
+  const save = localGamePersistence.load(key);
+  if (!save) return false;
+  let wallet = loadSessionWallet();
+  if (!wallet) {
+    const session = loadSupabaseSession();
+    if (!session?.accessToken || !session?.userId) return false;
+    wallet = await fetchAccountWallet(session.userId, session.accessToken);
+  }
+  if (!wallet) return false;
+  localGamePersistence.save(key, replaceInvestment(save, wallet));
+  return true;
+}
+
+/**
+ * Synchronous variant used at character-switch time: the game re-seeds from
+ * localStorage as soon as selection changes, so the sibling hero must already
+ * show the account pot before any network call resolves. Returns true when the
+ * cached wallet was applied.
+ */
+export function applyCachedWalletToSave(characterId: string): boolean {
+  const key = `character:${characterId}`;
+  const save = localGamePersistence.load(key);
+  const wallet = loadSessionWallet();
+  if (!save || !wallet) return false;
+  localGamePersistence.save(key, replaceInvestment(save, wallet));
+  return true;
+}
+
+/** Normalize every roster save locally to the account wallet. */
+export async function normalizeAllLocalSavesToWallet(): Promise<void> {
+  const session = loadSupabaseSession();
+  if (!session?.accessToken || !session?.userId) return;
+  let wallet = cachedWallet(session.userId);
+  if (!wallet) wallet = await fetchAccountWallet(session.userId, session.accessToken);
+  if (!wallet) return;
+  for (const character of session.characters ?? []) {
+    applyWalletToLocalSave(character.id);
+  }
 }
 
 export async function pullSupabaseGameSave(characterId: string): Promise<void> {
@@ -147,11 +218,15 @@ export async function applyBHCGrants(characterId: string): Promise<number> {
   const key = `character:${characterId}`;
   const save = localGamePersistence.load(key);
   if (wallet) {
+    cacheWallet(session.userId, wallet);
     writeGrantStamp(characterId, new Date().toISOString());
     if (save) {
       localGamePersistence.save(key, replaceInvestment(save, wallet));
     } else {
       await pullSupabaseGameSave(characterId);
+    }
+    for (const character of session.characters ?? []) {
+      void applyWalletToLocalSave(character.id);
     }
     lastSyncedBhc = null; lastSyncedBurned = null;
     scheduleWalletMirror(wallet.balance, wallet.burnedTotal);
