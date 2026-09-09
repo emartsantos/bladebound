@@ -6,7 +6,7 @@ import type { PlayerClassId } from './development-auth-adapter';
 import { developmentAuthClient, starterCharacter } from './development-auth-adapter';
 import { DEFAULT_PLAYER_CLASS } from '@/lib/classes';
 import { clearSupabaseSession, loadSupabaseSession, saveSupabaseSession, supabaseFetch, type StoredSupabaseSession } from '@/lib/supabase/session';
-import { pullSupabaseGameSave } from '@/lib/persistence/supabase-game-sync';
+import { applyBHCGrants, pullSupabaseGameSave } from '@/lib/persistence/supabase-game-sync';
 import { migrateLocalGameSave } from '@/lib/persistence/local-game-persistence';
 import { HERO_CAP } from '@/lib/game/service';
 
@@ -56,7 +56,7 @@ async function storeToken(token: TokenResponse): Promise<StoredSupabaseSession |
   } catch { /* malformed legacy auth data is safely ignored */ }
   saveSupabaseSession(session);
   migrateLocalGameSave(`account:${session.email}`, `character:${character.id}`);
-  await pullSupabaseGameSave(character.id);
+  await applyBHCGrants(character.id);
   return session;
 }
 
@@ -98,6 +98,7 @@ async function restoreSession(): Promise<AuthState> {
       saveSupabaseSession(stored);
     }
   }
+  if (stored.character) await applyBHCGrants(stored.character.id);
   return { isAuthenticated: true, isGuest: false, session: authSession(stored), guestSession: null, character: stored.character ?? null, characters: stored.characters ?? (stored.character ? [stored.character] : []), activeCharacterId: stored.character?.id ?? null, loading: false };
 }
 
@@ -128,6 +129,7 @@ async function selectCharacter(characterId: string): Promise<AuthState> {
   const character = stored?.characters?.find((entry) => entry.id === characterId);
   if (!stored || !character) return emptyState();
   stored.character = character; stored.activeCharacterId = character.id; saveSupabaseSession(stored);
+  await applyBHCGrants(character.id);
   await pullSupabaseGameSave(character.id);
   return restoreSession();
 }

@@ -31,6 +31,46 @@ export async function pushSupabaseGameSave(data: GameSaveData): Promise<void> {
   }, session.accessToken);
 }
 
+const roundBhc = (value: number): number => Math.round(value * 1000) / 1000;
+
+/**
+ * Claim pending server-authoritative BHC grants for the signed-in owner and
+ * credit the active character's save. The RPC atomically bumps the cloud save
+ * and marks each grant applied, so a later stale local push can never erase it.
+ * Local save is mirrored (or seeded from the cloud when missing) so the balance
+ * is immediately visible even without a full re-login.
+ */
+export async function applyBHCGrants(characterId: string): Promise<number> {
+  const session = loadSupabaseSession();
+  if (!session?.accessToken || !session?.userId) return 0;
+  const response = await supabaseFetch('/rest/v1/rpc/claim_bhc_grants', {
+    method: 'POST',
+    body: JSON.stringify({ p_owner_id: session.userId, p_character_id: characterId }),
+  }, session.accessToken);
+  if (!response.ok) return 0;
+  let total = 0;
+  try {
+    const rows = await response.json() as unknown[];
+    const first = rows[0];
+    if (typeof first === 'number') total = first;
+    else if (first && typeof first === 'object') total = Number(Object.values(first as Record<string, unknown>)[0] ?? 0) || 0;
+  } catch {
+    total = 0;
+  }
+  if (total > 0) {
+    const key = `character:${characterId}`;
+    const save = localGamePersistence.load(key);
+    if (save) {
+      const investment = save.investment ?? { bhc: 0, burnedTotal: 0, heroRebirth: 0, heroReforge: 0, heroBonusStat: null, heroBonusValue: 0, history: [] };
+      save.investment = { ...investment, bhc: roundBhc(investment.bhc + total) };
+      localGamePersistence.save(key, save);
+    } else {
+      await pullSupabaseGameSave(characterId);
+    }
+  }
+  return total;
+}
+
 /** Atomically reserve a registered hero's daily attempt before local combat starts. */
 export async function claimSupabaseDailyBattle(characterId: string): Promise<{ success: boolean; nextBattleAt?: number; error?: string }> {
   const session = loadSupabaseSession();
