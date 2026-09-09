@@ -50,12 +50,14 @@ import {
   rollForgedRarity,
   rollForgedAffix,
   inventoryRarityStacks,
+  reduceForgefireCraft,
+  FORGEFIRE_RARITY_BOOST,
   reduceChallengeEmberColossus,
   EMBER_COLOSSUS_START,
 } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { getCurrentTasks, levelForXp, SMITHING_RECIPES } from '@premium-rpg/game-engine';
-import { GAME_EVENTS, activeEvents, upcomingEvents, expiredEvents, EVENT_BY_ID } from '@/lib/game/events';
+import { GAME_EVENTS, FORGEFIRE_EVENT_ID, activeEvents, upcomingEvents, expiredEvents, EVENT_BY_ID } from '@/lib/game/events';
 
 // ── helpers ─────────────────────────────────────────────────────
 
@@ -156,6 +158,29 @@ describe('Ember Colossus event', () => {
   it('rejects attempts after the seven-day window', () => {
     const base = mergeSeed(makeConfig());
     expect(reduceChallengeEmberColossus(base, 0, EMBER_COLOSSUS_START + 8 * 86_400_000)).toBe(base);
+  });
+});
+
+describe('Forgefire Festival', () => {
+  const duringForgefire = Date.UTC(2026, 8, 24);
+
+  it('is playable for seven days and improves forged rarity odds', () => {
+    expect(activeEvents(duringForgefire).map((event) => event.id)).toContain(FORGEFIRE_EVENT_ID);
+    expect(EVENT_BY_ID[FORGEFIRE_EVENT_ID].endsAt - EVENT_BY_ID[FORGEFIRE_EVENT_ID].startsAt).toBe(7 * 86_400_000);
+    expect(rollForgedRarity('common', 1, 0.3)).toBe('common');
+    expect(rollForgedRarity('common', 1, 0.3, FORGEFIRE_RARITY_BOOST)).toBe('uncommon');
+  });
+
+  it('awards Forge Cores and the hammer cosmetic once at milestones', () => {
+    let state = mergeSeed(makeConfig());
+    for (let i = 0; i < 6; i += 1) state = reduceForgefireCraft(state, 'epic', duringForgefire + i);
+    expect(state.events.participation[FORGEFIRE_EVENT_ID].craftingPoints).toBe(30);
+    expect(state.events.participation[FORGEFIRE_EVENT_ID].claimedMilestones).toEqual([5, 15, 30]);
+    expect(state.inventory.forge_core).toBe(3);
+    expect(state.inventory.forgefire_hammer_cosmetic).toBe(1);
+    state = reduceForgefireCraft(state, 'common', duringForgefire + 10);
+    expect(state.inventory.forge_core).toBe(3);
+    expect(state.inventory.forgefire_hammer_cosmetic).toBe(1);
   });
 });
 

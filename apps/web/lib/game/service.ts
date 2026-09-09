@@ -100,7 +100,7 @@ import type { DungeonCombatSlice } from '@/lib/persistence/game-persistence';
 import type { DailyBattleState, BattleHistoryEntry, EmberColossusEventState } from '@/lib/persistence/game-persistence';
 import type { RetentionState, InvestmentState, InvestmentRecord, MarketplaceAssetType, MarketplaceListing, MarketplaceState, SummonClass, SummonRarity, SummoningState, ForgedEquipmentAffix } from '@/lib/persistence/game-persistence';
 import { COMBAT_LEVEL_CAP, derivedCombatStats } from '@/lib/combat-progression';
-import { EVENT_BY_ID, EMBER_EVENT_ID, emptyParticipation, eventDay, eventStatus, type EventFrameworkState } from '@/lib/game/events';
+import { EVENT_BY_ID, EMBER_EVENT_ID, FORGEFIRE_EVENT_ID, emptyParticipation, eventDay, eventStatus, type EventFrameworkState } from '@/lib/game/events';
 
 export const TICK_MS = 250;
 export const AUTO_FIGHT_GAP_MS = 1100;
@@ -159,6 +159,40 @@ export function reduceChallengeEvent(prev: GameState, eventId: string, roll = Ma
 
 export function reduceChallengeEmberColossus(prev: GameState, roll = Math.random(), now = Date.now()): GameState {
   return reduceChallengeEvent(prev, EMBER_EVENT_ID, roll, now);
+}
+
+export const FORGEFIRE_RARITY_BOOST = 0.18;
+const FORGEFIRE_POINTS: Record<Rarity, number> = { common: 1, uncommon: 2, rare: 3, epic: 5, legendary: 8 };
+
+export function forgefireEventActive(now = Date.now()): boolean {
+  return eventStatus(EVENT_BY_ID[FORGEFIRE_EVENT_ID], now) === 'active';
+}
+
+export function reduceForgefireCraft(prev: GameState, rarity: Rarity, now = Date.now()): GameState {
+  if (!forgefireEventActive(now)) return prev;
+  const participation = prev.events.participation[FORGEFIRE_EVENT_ID] ?? emptyParticipation();
+  const before = participation.craftingPoints ?? 0;
+  const points = before + FORGEFIRE_POINTS[rarity];
+  const claimed = new Set(participation.claimedMilestones ?? []);
+  let inventory = prev.inventory;
+  const gains: GainFeed[] = [{ id: nextId(), text: `Forgefire +${FORGEFIRE_POINTS[rarity]} points`, kind: 'xp' }];
+  for (const milestone of [5, 15, 30]) {
+    if (points < milestone || claimed.has(milestone)) continue;
+    claimed.add(milestone);
+    if (milestone === 5) inventory = addInventory(inventory, 'forge_core', 1);
+    if (milestone === 15) inventory = addInventory(inventory, 'forge_core', 2);
+    if (milestone === 30) inventory = addInventory(inventory, 'forgefire_hammer_cosmetic', 1);
+    gains.push({ id: nextId(), text: milestone === 30 ? 'Forgefire Hammer unlocked!' : `Forgefire milestone ${milestone}: Forge Cores`, kind: 'rare' });
+  }
+  return {
+    ...prev,
+    inventory,
+    gains: pushGains(prev.gains, gains),
+    events: { participation: { ...prev.events.participation, [FORGEFIRE_EVENT_ID]: {
+      ...participation, craftingPoints: points, equipmentForged: (participation.equipmentForged ?? 0) + 1,
+      claimedMilestones: [...claimed].sort((a, b) => a - b),
+    } } },
+  };
 }
 export const SUMMONED_HERO_BATTLE_CAP = 5;
 
@@ -280,12 +314,12 @@ export const nextId = (): number => ++seq;
 const RARITY_ORDER: Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 
 /** Roll forge quality without ever lowering the item's native rarity. */
-export function rollForgedRarity(base: Rarity, smithingLevel: number, roll = Math.random()): Rarity {
+export function rollForgedRarity(base: Rarity, smithingLevel: number, roll = Math.random(), eventBoost = 0): Rarity {
   const baseIndex = RARITY_ORDER.indexOf(base);
   const levelBonus = Math.max(0, Math.min(99, smithingLevel - 1)) / 500;
-  const legendaryChance = 0.005 + levelBonus * 0.05;
-  const doubleUpgradeChance = 0.035 + levelBonus * 0.15;
-  const singleUpgradeChance = 0.22 + levelBonus;
+  const legendaryChance = 0.005 + levelBonus * 0.05 + eventBoost * 0.08;
+  const doubleUpgradeChance = 0.035 + levelBonus * 0.15 + eventBoost * 0.35;
+  const singleUpgradeChance = 0.22 + levelBonus + eventBoost;
   const upgrade = roll < legendaryChance ? 4 : roll < doubleUpgradeChance ? 2 : roll < singleUpgradeChance ? 1 : 0;
   return RARITY_ORDER[Math.min(RARITY_ORDER.length - 1, baseIndex + upgrade)];
 }
@@ -897,6 +931,7 @@ function tickCore(prev: GameState, now: number, includeCombat: boolean): GameSta
             const forgedEquipmentAffixes = Object.fromEntries(
               Object.entries(state.forgedEquipmentAffixes).map(([id, affixes]) => [id, [...affixes]]),
             );
+            const forgefireCraftRarities: Rarity[] = [];
             for (const ing of craft.consumedIngredients) inventory = addInventory(inventory, ing.itemId, -ing.quantity);
             const gains: GainFeed[] = [{ id: nextId(), text: `+${craft.xpGained} XP`, kind: 'xp' }];
             for (const o of craft.outputs) {
@@ -906,9 +941,10 @@ function tickCore(prev: GameState, now: number, includeCombat: boolean): GameSta
                 const rarities = forgedEquipmentRarities[o.itemId] ?? [];
                 const affixes = forgedEquipmentAffixes[o.itemId] ?? [];
                 for (let count = 0; count < o.quantity; count += 1) {
-                  const rarity = rollForgedRarity(definition.rarity, grow.newLevel);
+                  const rarity = rollForgedRarity(definition.rarity, grow.newLevel, Math.random(), forgefireEventActive(now) ? FORGEFIRE_RARITY_BOOST : 0);
                   rarities.push(rarity);
                   affixes.push(rollForgedAffix(rarity, grow.newLevel));
+                  forgefireCraftRarities.push(rarity);
                 }
                 forgedEquipmentRarities[o.itemId] = rarities.slice(-1000);
                 forgedEquipmentAffixes[o.itemId] = affixes.slice(-1000);
@@ -923,7 +959,8 @@ function tickCore(prev: GameState, now: number, includeCombat: boolean): GameSta
             if (grow.levelsGained > 0) {
               gains.push({ id: nextId(), text: `${recipe.name} — ${craftSkill} level ${grow.newLevel}!`, kind: 'level' });
             }
-            const advanced = { ...state, skills: { ...state.skills, [craftSkill]: grow.newXp }, inventory, forgedEquipmentRarities, forgedEquipmentAffixes };
+            let advanced = { ...state, skills: { ...state.skills, [craftSkill]: grow.newXp }, inventory, forgedEquipmentRarities, forgedEquipmentAffixes };
+            for (const rarity of forgefireCraftRarities) advanced = reduceForgefireCraft(advanced, rarity, now);
             state = {
               ...advanced,
               gains: pushGains(state.gains, gains),

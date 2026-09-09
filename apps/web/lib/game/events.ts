@@ -11,6 +11,7 @@ export interface GameEventDefinition {
   rewardSummary: string;
   playable: boolean;
   rewards?: { bhc: number; items: Array<{ itemId: string; quantity: number }>; firstVictoryItemId?: string };
+  objectives?: Array<{ points: number; label: string; reward: string }>;
 }
 
 export interface EventParticipation {
@@ -18,6 +19,9 @@ export interface EventParticipation {
   victories: number;
   featuredRewardClaimed: boolean;
   history: Array<{ day: string; victory: boolean; createdAt: number }>;
+  craftingPoints?: number;
+  equipmentForged?: number;
+  claimedMilestones?: number[];
 }
 
 export interface EventFrameworkState {
@@ -36,9 +40,14 @@ export const GAME_EVENTS: GameEventDefinition[] = [
   },
   {
     id: 'forgefire-festival-2026', name: 'Forgefire Festival', kind: 'crafting',
-    startsAt: utc(9, 23), endsAt: utc(9, 30), cadence: 'Seven-day crafting celebration', playable: false,
+    startsAt: utc(9, 23), endsAt: utc(9, 30), cadence: 'Seven days · unlimited Smithing crafts', playable: true,
     description: 'Complete smithing objectives while the master forges burn white-hot.',
     rewardSummary: 'Forge Cores · boosted rarity odds · hammer cosmetic',
+    objectives: [
+      { points: 5, label: 'Kindle the Forge', reward: '1 Forge Core' },
+      { points: 15, label: 'White-Hot Steel', reward: '2 Forge Cores' },
+      { points: 30, label: 'Master of Forgefire', reward: 'Forgefire Hammer cosmetic' },
+    ],
   },
   {
     id: 'goblin-gold-rush-2026', name: 'Goblin Gold Rush', kind: 'gathering',
@@ -56,6 +65,7 @@ export const GAME_EVENTS: GameEventDefinition[] = [
 
 export const EVENT_BY_ID = Object.fromEntries(GAME_EVENTS.map((event) => [event.id, event])) as Record<string, GameEventDefinition>;
 export const EMBER_EVENT_ID = 'ember-colossus-2026';
+export const FORGEFIRE_EVENT_ID = 'forgefire-festival-2026';
 
 export function eventDay(now = Date.now()): string { return new Date(now).toISOString().slice(0, 10); }
 export function eventStatus(event: GameEventDefinition, now = Date.now()): 'upcoming' | 'active' | 'expired' {

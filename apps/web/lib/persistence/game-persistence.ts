@@ -2,7 +2,7 @@ import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, Play
 import type { ActiveAction, QueuedAction } from '@/lib/game/service';
 import type { EventFrameworkState } from '@/lib/game/events';
 
-export const GAME_SAVE_SCHEMA_VERSION = 11;
+export const GAME_SAVE_SCHEMA_VERSION = 12;
 
 export type ForgedEquipmentRarities = Record<string, Rarity[]>;
 export interface ForgedEquipmentAffix { stat: 'strength' | 'agility' | 'intelligence' | 'vitality' | 'armor'; value: number; name: string }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { LuCalendarDays, LuClock3, LuCrown, LuHistory, LuSparkles } from 'react-icons/lu';
-import { GAME_EVENTS, activeEvents, eventDay, eventStatus, expiredEvents, upcomingEvents, emptyParticipation, type GameEventDefinition } from '@/lib/game/events';
+import { GAME_EVENTS, FORGEFIRE_EVENT_ID, activeEvents, eventDay, eventStatus, expiredEvents, upcomingEvents, emptyParticipation, type GameEventDefinition } from '@/lib/game/events';
 import { useGame } from '@/lib/game-state';
 import { Panel, PanelLabel, GameButton } from '@/components/game/primitives';
 
@@ -54,9 +54,20 @@ function CalendarRow({ event, now }: { event: GameEventDefinition; now: number }
 function EventCard({ event, now, participation = emptyParticipation(), onChallenge }: { event: GameEventDefinition; now: number; participation?: ReturnType<typeof emptyParticipation>; onChallenge?: () => void }) {
   const status = eventStatus(event, now);
   const used = Boolean(participation.attemptsByDay[eventDay(now)]);
+  const craftingPoints = participation.craftingPoints ?? 0;
+  const isForgefire = event.id === FORGEFIRE_EVENT_ID;
   return <div className={`rounded-sm border p-3 ${status === 'active' ? 'border-ember/60 bg-[radial-gradient(circle_at_top_right,rgba(212,105,47,.2),transparent_60%)]' : 'border-iron/60 bg-charcoal/50'}`}>
     <div className="flex flex-wrap items-start justify-between gap-3"><div className="max-w-xl"><div className="flex items-center gap-2"><LuCrown className="h-4 w-4 text-emberLight" /><h3 className="font-display text-base text-bone">{event.name}</h3></div><p className="mt-1 text-[11px] text-mist">{event.description}</p><p className="mt-1 text-[10px] text-bronze">{event.rewardSummary}</p></div>{status === 'active' && onChallenge && <GameButton variant="primary" disabled={used} onClick={onChallenge}>{used ? 'Attempt used today' : 'Challenge boss'}</GameButton>}</div>
     <div className="mt-2 flex flex-wrap gap-3 border-t border-iron/40 pt-2 font-mono text-[9px] text-stone"><span>{fmt(event.startsAt)} – {fmt(event.endsAt)}</span>{status === 'active' && <span className="text-emberLight"><LuClock3 className="mr-1 inline h-3 w-3" />{remaining(event.endsAt, now)} left</span>}<span>{event.cadence}</span><span>Attempts {Object.keys(participation.attemptsByDay).length} · Wins {participation.victories}</span></div>
+    {isForgefire && <div className="mt-3 rounded-sm border border-ember/30 bg-black/15 p-2.5">
+      <div className="flex items-center justify-between text-[10px]"><span className="font-semibold text-bone">Smithing progress</span><span className="font-mono text-emberLight">{craftingPoints}/30 points · {participation.equipmentForged ?? 0} forged</span></div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded bg-iron"><div className="h-full bg-ember transition-all" style={{ width: `${Math.min(100, craftingPoints / 30 * 100)}%` }} /></div>
+      <div className="mt-2 grid gap-1 sm:grid-cols-3">{event.objectives?.map((objective) => {
+        const claimed = participation.claimedMilestones?.includes(objective.points);
+        return <div key={objective.points} className={`rounded-sm border px-2 py-1.5 text-[9px] ${claimed ? 'border-verdant/40 bg-verdant/10 text-verdantBright' : 'border-iron text-stone'}`}><div>{objective.points} pts · {objective.label}</div><div className="text-bronze">{claimed ? 'Claimed' : objective.reward}</div></div>;
+      })}</div>
+      {status === 'active' && <p className="mt-2 text-[9px] text-mist">Forge equipment in Smithing to earn points. Festival heat improves every forged rarity roll.</p>}
+    </div>}
     {participation.history.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{participation.history.slice(0, 7).map((entry) => <span key={`${entry.day}-${entry.createdAt}`} className={`rounded-sm px-1.5 py-0.5 text-[9px] ${entry.victory ? 'bg-verdant/15 text-verdantBright' : 'bg-danger/10 text-dangerBright'}`}>{entry.day} · {entry.victory ? 'Victory' : 'Defeat'}</span>)}</div>}
   </div>;
 }
