@@ -28,7 +28,7 @@ import { SKILL_ORDER, skillLabel } from '@/lib/skills-meta';
 import { SkillIcon } from '@/components/game/icons';
 import { CurrentAction } from '@/components/CurrentAction';
 import { APP_VERSION_LABEL } from '@/lib/version';
-import { EMBER_COLOSSUS_END, emberEventActive, emberEventDay } from '@/lib/game/service';
+import { activeEvents, eventDay } from '@/lib/game/events';
 
 // ── NAV DEFINITION ──────────────────────────────────────────────
 
@@ -219,11 +219,12 @@ export function TopBar() {
     const timer = window.setInterval(() => setEventNow(Date.now()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
-  const eventLive = eventNow > 0 && emberEventActive(eventNow);
-  const eventRemaining = Math.max(0, EMBER_COLOSSUS_END - eventNow);
+  const liveEvent = eventNow > 0 ? activeEvents(eventNow)[0] : undefined;
+  const eventLive = Boolean(liveEvent);
+  const eventRemaining = Math.max(0, (liveEvent?.endsAt ?? 0) - eventNow);
   const eventDays = Math.floor(eventRemaining / 86_400_000);
   const eventHours = Math.floor((eventRemaining % 86_400_000) / 3_600_000);
-  const eventAttemptUsed = eventLive && Boolean(state.emberColossus.attemptsByDay[emberEventDay(eventNow)]);
+  const eventAttemptUsed = Boolean(liveEvent && state.events.participation[liveEvent.id]?.attemptsByDay[eventDay(eventNow)]);
 
   const profileItems = [
     { label: 'Settings', value: 'settings', icon: <LuSettings className="h-3.5 w-3.5" /> },
@@ -261,7 +262,7 @@ export function TopBar() {
         {/* RIGHT: resources + account + menu */}
         <div className="flex items-center gap-2">
           {eventLive && (
-            <Tooltip content={`The Ember Colossus is live · ${eventAttemptUsed ? 'today’s attempt used' : 'free attempt ready'}`} side="bottom">
+            <Tooltip content={`${liveEvent?.name ?? 'Event'} is live · ${eventAttemptUsed ? 'today’s attempt used' : 'free attempt ready'}`} side="bottom">
               <button
                 onClick={() => setActiveSection('adventure')}
                 className="legendary-pulse group relative flex h-8 items-center gap-2 overflow-hidden rounded-sm border border-ember/70 bg-gradient-to-r from-ember/25 via-danger/15 to-ember/25 px-2.5 text-left shadow-[0_0_18px_rgba(212,105,47,.22)] transition-colors hover:border-emberLight"

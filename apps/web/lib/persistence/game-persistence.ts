@@ -1,7 +1,8 @@
 import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, PlayerTaskState, PlayerQuestState, PlayerAchievementState, PlayerCollectionState, BestiaryState, Rarity } from '@premium-rpg/shared-types';
 import type { ActiveAction, QueuedAction } from '@/lib/game/service';
+import type { EventFrameworkState } from '@/lib/game/events';
 
-export const GAME_SAVE_SCHEMA_VERSION = 9;
+export const GAME_SAVE_SCHEMA_VERSION = 10;
 
 export type ForgedEquipmentRarities = Record<string, Rarity[]>;
 
@@ -202,6 +203,7 @@ export interface GameSaveData {
   marketplace?: MarketplaceState;
   summoning?: SummoningState;
   emberColossus?: EmberColossusEventState;
+  events?: EventFrameworkState;
 }
 
 /** Upgrade older browser/cloud saves without discarding valid zero balances. */
