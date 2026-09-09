@@ -2,9 +2,11 @@ import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, Play
 import type { ActiveAction, QueuedAction } from '@/lib/game/service';
 import type { EventFrameworkState } from '@/lib/game/events';
 
-export const GAME_SAVE_SCHEMA_VERSION = 10;
+export const GAME_SAVE_SCHEMA_VERSION = 11;
 
 export type ForgedEquipmentRarities = Record<string, Rarity[]>;
+export interface ForgedEquipmentAffix { stat: 'strength' | 'agility' | 'intelligence' | 'vitality' | 'armor'; value: number; name: string }
+export type ForgedEquipmentAffixes = Record<string, Array<ForgedEquipmentAffix | null>>;
 
 export interface RetentionMail {
   id: string;
@@ -176,6 +178,8 @@ export interface GameSaveData {
   equipment: EquipmentSlots;
   /** Rolled rarity for each unequipped item forged by this character. */
   forgedEquipmentRarities?: ForgedEquipmentRarities;
+  /** Affixes aligned by index with forgedEquipmentRarities for each item id. */
+  forgedEquipmentAffixes?: ForgedEquipmentAffixes;
   combatXp: number;
   combatLevel: number;
   selectedSkill: SkillId;
@@ -218,6 +222,7 @@ export function migrateGameSave(input: GameSaveData): GameSaveData {
     inventory: source.inventory ?? {},
     durability: source.durability ?? {},
     forgedEquipmentRarities: source.forgedEquipmentRarities ?? {},
+    forgedEquipmentAffixes: source.forgedEquipmentAffixes ?? {},
     ledger: Array.isArray(source.ledger) ? source.ledger.slice(-500) : [],
     dailyBattle: {
       nextBattleAt: Math.max(0, source.dailyBattle?.nextBattleAt ?? 0),

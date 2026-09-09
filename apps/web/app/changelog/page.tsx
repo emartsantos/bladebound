@@ -24,6 +24,15 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.9.0', type: 'minor', date: '2026-09-09',
+    changes: [
+      { category: 'Added', description: 'Complete bronze-through-rune armor sets with shields, helmets, platebodies, gauntlets, platelegs, and boots' },
+      { category: 'Added', description: 'Expanded Smithing recipes for every weapon and armor piece through rune tier' },
+      { category: 'Added', description: 'Forged equipment affixes and equipment power comparison before swapping gear' },
+      { category: 'Changed', description: 'Equipment inventory copies are separated by forged rarity while existing characters and saves are preserved' },
+    ],
+  },
+  {
     version: 'v0.8.1', type: 'patch', date: '2026-09-09',
     changes: [
       { category: 'Fixed', description: 'Account confirmation links now return players to the complete GitHub Pages /bladebound/ route instead of the domain root' },

@@ -9,6 +9,15 @@ const FORGED_QUALITY_MULTIPLIER: Record<Rarity, number> = {
   common: 1, uncommon: 1.05, rare: 1.12, epic: 1.22, legendary: 1.35,
 };
 
+export function equipmentPreviewPower(itemId: string, rarity?: Rarity): number {
+  const definition = ITEM_BY_ID[itemId];
+  const multiplier = rarity ? FORGED_QUALITY_MULTIPLIER[rarity] : 1;
+  return Math.round(Object.entries(definition?.stats ?? {}).reduce((sum, [key, value]) => {
+    const weight = key === 'maxHealth' ? 0.2 : key === 'attackSpeed' ? 20 : key.includes('crit') ? 1.5 : 1;
+    return sum + Math.max(0, value ?? 0) * weight * multiplier;
+  }, 0));
+}
+
 const CLASS_GROWTH = {
   warrior: { strength: 1.18, vitality: 1.15, armor: 1.12 },
   ranger: { agility: 1.2, accuracy: 1.15, evasion: 1.12 },

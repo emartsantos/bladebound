@@ -10,7 +10,7 @@ import type {
 
 // ─── SMITHING RECIPES ──────────────────────────────────────────────
 
-export const SMITHING_RECIPES: CraftingRecipe[] = [
+const CORE_SMITHING_RECIPES: CraftingRecipe[] = [
   {
     id: 'smith_bronze_bar',
     name: 'Bronze Bar',
@@ -143,6 +143,45 @@ export const SMITHING_RECIPES: CraftingRecipe[] = [
     xp: 40,
     bonuses: [{ type: 'double_output', chance: 0.03 }],
   },
+];
+
+const EQUIPMENT_TIERS = [
+  { tier: 'bronze', level: 5, bar: 'bronze_bar', xp: 25, duration: 4000 },
+  { tier: 'iron', level: 15, bar: 'iron_bar', xp: 45, duration: 5000 },
+  { tier: 'steel', level: 25, bar: 'steel_bar', xp: 70, duration: 6000 },
+  { tier: 'mithril', level: 35, bar: 'mithril_bar', xp: 100, duration: 7000 },
+  { tier: 'adamant', level: 45, bar: 'adamant_bar', xp: 140, duration: 8000 },
+  { tier: 'rune', level: 55, bar: 'rune_bar', xp: 190, duration: 9000 },
+] as const;
+
+const EQUIPMENT_PIECES = [
+  { suffix: 'sword', label: 'Sword', bars: 2, levelOffset: 0 },
+  { suffix: 'shield', label: 'Shield', bars: 3, levelOffset: 3 },
+  { suffix: 'helmet', label: 'Helmet', bars: 2, levelOffset: -2 },
+  { suffix: 'platebody', label: 'Platebody', bars: 5, levelOffset: 5 },
+  { suffix: 'gloves', label: 'Gauntlets', bars: 2, levelOffset: 1 },
+  { suffix: 'legs', label: 'Platelegs', bars: 4, levelOffset: 4 },
+  { suffix: 'boots', label: 'Boots', bars: 2, levelOffset: 2 },
+] as const;
+
+const expandedEquipmentRecipes: CraftingRecipe[] = EQUIPMENT_TIERS.flatMap((tier) =>
+  EQUIPMENT_PIECES.map((piece) => ({
+    id: `smith_${tier.tier}_${piece.suffix}`,
+    name: `${tier.tier[0].toUpperCase()}${tier.tier.slice(1)} ${piece.label}`,
+    skill: 'smithing' as const,
+    levelRequired: Math.max(1, tier.level + piece.levelOffset),
+    ingredients: [{ itemId: tier.bar, quantity: piece.bars }],
+    output: [{ itemId: `${tier.tier}_${piece.suffix}`, quantity: 1 }],
+    duration: tier.duration + piece.bars * 500,
+    xp: tier.xp + piece.bars * 8,
+    bonuses: [{ type: 'bonus_xp' as const, chance: 0.1, value: Math.round(tier.xp * 0.4) }],
+  })),
+);
+
+/** Bars plus every weapon and complete armor-set recipe from bronze through rune. */
+export const SMITHING_RECIPES: CraftingRecipe[] = [
+  ...CORE_SMITHING_RECIPES.filter((recipe) => recipe.output.some((output) => output.itemId.endsWith('_bar'))),
+  ...expandedEquipmentRecipes,
 ];
 
 // ─── COOKING RECIPES ───────────────────────────────────────────────

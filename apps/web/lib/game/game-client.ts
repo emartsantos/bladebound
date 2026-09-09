@@ -1,4 +1,4 @@
-import type { SkillId, EquipmentSlot } from '@premium-rpg/shared-types';
+import type { SkillId, EquipmentSlot, Rarity } from '@premium-rpg/shared-types';
 import type { GameState } from './service';
 import type { MarketplaceAssetType } from '@/lib/persistence/game-persistence';
 
@@ -35,7 +35,7 @@ export interface GameClient {
 
   repairAll(): void;
   resetProgress(): void;
-  equipItem(slot: EquipmentSlot, itemId: string): void;
+  equipItem(slot: EquipmentSlot, itemId: string, rarity?: Rarity): void;
   unequipItem(slot: EquipmentSlot): void;
   forgeWeapon(): void;
   awakenWeapon(): void;

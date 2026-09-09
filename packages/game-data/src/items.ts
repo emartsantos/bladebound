@@ -86,16 +86,32 @@ export const ARMOR_DEFINITIONS: ItemDefinition[] = ARMOR_TIERS.map((t) =>
 // Early smithing recipes use dedicated off-hand and helmet pieces. Keeping
 // them in the central registry makes their recipe output equippable (and lets
 // the web client attach a rolled forged rarity to the resulting instance).
-export const SMITHED_ARMOR_DEFINITIONS: ItemDefinition[] = [
-  equip('bronze_shield', 'Bronze Shield', 'armor', 'common', 'bronze', 'offhand', 1,
-    { defense: 2, armor: 1 }, 'crafting', [], 'A dependable bronze shield.'),
-  equip('iron_shield', 'Iron Shield', 'armor', 'common', 'iron', 'offhand', 10,
-    { defense: 4, armor: 3, vitality: 1 }, 'crafting', [], 'A sturdy iron shield.'),
-  equip('bronze_helmet', 'Bronze Helmet', 'armor', 'common', 'bronze', 'helmet', 1,
-    { armor: 1, vitality: 1 }, 'crafting', [], 'A simple bronze helmet.'),
-  equip('iron_helmet', 'Iron Helmet', 'armor', 'common', 'iron', 'helmet', 10,
-    { armor: 3, vitality: 2 }, 'crafting', [], 'A solid iron helmet.'),
+const CRAFTABLE_ARMOR_TIERS = ARMOR_TIERS.slice(0, 6);
+const ARMOR_PIECES: Array<{ suffix: string; label: string; slot: ItemDefinition['equipmentSlot']; costWeight: number }> = [
+  { suffix: 'shield', label: 'Shield', slot: 'offhand', costWeight: 0.75 },
+  { suffix: 'helmet', label: 'Helmet', slot: 'helmet', costWeight: 0.65 },
+  { suffix: 'gloves', label: 'Gauntlets', slot: 'gloves', costWeight: 0.5 },
+  { suffix: 'legs', label: 'Platelegs', slot: 'legs', costWeight: 0.85 },
+  { suffix: 'boots', label: 'Boots', slot: 'boots', costWeight: 0.45 },
 ];
+
+/** Complete craftable armor sets from bronze through rune. Chest pieces live in ARMOR_DEFINITIONS. */
+export const SMITHED_ARMOR_DEFINITIONS: ItemDefinition[] = CRAFTABLE_ARMOR_TIERS.flatMap((tier) =>
+  ARMOR_PIECES.map((piece) => {
+    const scale = piece.costWeight;
+    return equip(
+      `${tier.tier}_${piece.suffix}`,
+      `${tier.tier[0].toUpperCase()}${tier.tier.slice(1)} ${piece.label}`,
+      'armor', tier.rarity, tier.tier, piece.slot, tier.level,
+      {
+        armor: Math.max(1, Math.round((tier.bonus.armor ?? tier.def) * scale)),
+        defense: Math.max(1, Math.round(tier.def * scale)),
+        vitality: Math.max(0, Math.round((tier.bonus.vitality ?? 0) * scale)),
+      },
+      'crafting', [], `Part of the ${tier.tier} armor set.`,
+    );
+  }),
+);
 
 // ─── UNIQUE / BOSS DROP ITEMS ────────────────────────────────────────
 // Bespoke items with named passives — the "more than color" payoff.

@@ -98,7 +98,7 @@ import { itemName, itemHeal } from '@/lib/item-names';
 import { GAME_SAVE_SCHEMA_VERSION, type EconomyTransaction, type GamePersistence, type GameSaveData } from '@/lib/persistence/game-persistence';
 import type { DungeonCombatSlice } from '@/lib/persistence/game-persistence';
 import type { DailyBattleState, BattleHistoryEntry, EmberColossusEventState } from '@/lib/persistence/game-persistence';
-import type { RetentionState, InvestmentState, InvestmentRecord, MarketplaceAssetType, MarketplaceListing, MarketplaceState, SummonClass, SummonRarity, SummoningState } from '@/lib/persistence/game-persistence';
+import type { RetentionState, InvestmentState, InvestmentRecord, MarketplaceAssetType, MarketplaceListing, MarketplaceState, SummonClass, SummonRarity, SummoningState, ForgedEquipmentAffix } from '@/lib/persistence/game-persistence';
 import { COMBAT_LEVEL_CAP, derivedCombatStats } from '@/lib/combat-progression';
 import { EVENT_BY_ID, EMBER_EVENT_ID, emptyParticipation, eventDay, eventStatus, type EventFrameworkState } from '@/lib/game/events';
 
@@ -234,6 +234,7 @@ export interface GameState {
   durability: Record<string, number>;
   equipment: EquipmentSlots;
   forgedEquipmentRarities: Record<string, Rarity[]>;
+  forgedEquipmentAffixes: Record<string, Array<ForgedEquipmentAffix | null>>;
   activeAction: ActiveAction | null;
   actionQueue: QueuedAction[];
   actionLog: ActionLogEntry[];
@@ -292,6 +293,27 @@ export function rollForgedRarity(base: Rarity, smithingLevel: number, roll = Mat
 export function forgedInventoryRarity(state: Pick<GameState, 'forgedEquipmentRarities'>, itemId: string, fallback: Rarity): Rarity {
   const rolls = state.forgedEquipmentRarities[itemId] ?? [];
   return rolls.reduce((best, rarity) => RARITY_ORDER.indexOf(rarity) > RARITY_ORDER.indexOf(best) ? rarity : best, fallback);
+}
+
+const FORGED_AFFIXES: Array<{ stat: ForgedEquipmentAffix['stat']; name: string }> = [
+  { stat: 'strength', name: 'Mighty' }, { stat: 'agility', name: 'Swift' },
+  { stat: 'intelligence', name: 'Sage' }, { stat: 'vitality', name: 'Stalwart' },
+  { stat: 'armor', name: 'Warded' },
+];
+
+export function rollForgedAffix(rarity: Rarity, smithingLevel: number, roll = Math.random()): ForgedEquipmentAffix | null {
+  const rarityIndex = RARITY_ORDER.indexOf(rarity);
+  if (rarityIndex === 0 && roll > 0.25 + Math.min(0.2, smithingLevel / 500)) return null;
+  const pick = FORGED_AFFIXES[Math.min(FORGED_AFFIXES.length - 1, Math.floor(roll * FORGED_AFFIXES.length))];
+  return { ...pick, value: Math.max(1, 1 + rarityIndex * 2 + Math.floor(smithingLevel / 20)) };
+}
+
+export function inventoryRarityStacks(state: Pick<GameState, 'forgedEquipmentRarities'>, itemId: string, total: number, fallback: Rarity): Array<{ rarity: Rarity; quantity: number }> {
+  const counts = new Map<Rarity, number>();
+  for (const rarity of state.forgedEquipmentRarities[itemId] ?? []) counts.set(rarity, (counts.get(rarity) ?? 0) + 1);
+  const untracked = Math.max(0, total - [...counts.values()].reduce((sum, value) => sum + value, 0));
+  if (untracked > 0) counts.set(fallback, (counts.get(fallback) ?? 0) + untracked);
+  return [...counts.entries()].sort((a, b) => RARITY_ORDER.indexOf(b[0]) - RARITY_ORDER.indexOf(a[0])).map(([rarity, quantity]) => ({ rarity, quantity }));
 }
 
 // Bar-math mirror of the engine XP step (BASE_XP * level^XP_GROWTH), using the
@@ -438,6 +460,7 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     durability: save?.durability ?? {},
     equipment: save?.equipment ?? emptyEquipment(),
     forgedEquipmentRarities: save?.forgedEquipmentRarities ?? {},
+    forgedEquipmentAffixes: save?.forgedEquipmentAffixes ?? {},
     activeAction: retainedAction,
     actionQueue: (save?.actionQueue ?? []).slice(0, MAX_ACTION_QUEUE).map((action) => ({
       ...action,
@@ -531,6 +554,7 @@ export function gameToSaveData(state: GameState): GameSaveData {
     durability: state.durability,
     equipment: state.equipment,
     forgedEquipmentRarities: state.forgedEquipmentRarities,
+    forgedEquipmentAffixes: state.forgedEquipmentAffixes,
     combatXp: state.combatXp,
     combatLevel: state.combatLevel,
     selectedSkill: state.selectedSkill,
@@ -870,6 +894,9 @@ function tickCore(prev: GameState, now: number, includeCombat: boolean): GameSta
             const forgedEquipmentRarities = Object.fromEntries(
               Object.entries(state.forgedEquipmentRarities).map(([id, rarities]) => [id, [...rarities]]),
             );
+            const forgedEquipmentAffixes = Object.fromEntries(
+              Object.entries(state.forgedEquipmentAffixes).map(([id, affixes]) => [id, [...affixes]]),
+            );
             for (const ing of craft.consumedIngredients) inventory = addInventory(inventory, ing.itemId, -ing.quantity);
             const gains: GainFeed[] = [{ id: nextId(), text: `+${craft.xpGained} XP`, kind: 'xp' }];
             for (const o of craft.outputs) {
@@ -877,8 +904,14 @@ function tickCore(prev: GameState, now: number, includeCombat: boolean): GameSta
               const definition = ITEM_BY_ID[o.itemId];
               if (craftSkill === 'smithing' && definition?.equipmentSlot) {
                 const rarities = forgedEquipmentRarities[o.itemId] ?? [];
-                for (let count = 0; count < o.quantity; count += 1) rarities.push(rollForgedRarity(definition.rarity, grow.newLevel));
+                const affixes = forgedEquipmentAffixes[o.itemId] ?? [];
+                for (let count = 0; count < o.quantity; count += 1) {
+                  const rarity = rollForgedRarity(definition.rarity, grow.newLevel);
+                  rarities.push(rarity);
+                  affixes.push(rollForgedAffix(rarity, grow.newLevel));
+                }
                 forgedEquipmentRarities[o.itemId] = rarities.slice(-1000);
+                forgedEquipmentAffixes[o.itemId] = affixes.slice(-1000);
               }
               const forgedRarity = definition?.equipmentSlot ? forgedEquipmentRarities[o.itemId]?.at(-1) : undefined;
               gains.push({
@@ -890,7 +923,7 @@ function tickCore(prev: GameState, now: number, includeCombat: boolean): GameSta
             if (grow.levelsGained > 0) {
               gains.push({ id: nextId(), text: `${recipe.name} — ${craftSkill} level ${grow.newLevel}!`, kind: 'level' });
             }
-            const advanced = { ...state, skills: { ...state.skills, [craftSkill]: grow.newXp }, inventory, forgedEquipmentRarities };
+            const advanced = { ...state, skills: { ...state.skills, [craftSkill]: grow.newXp }, inventory, forgedEquipmentRarities, forgedEquipmentAffixes };
             state = {
               ...advanced,
               gains: pushGains(state.gains, gains),
@@ -1270,7 +1303,7 @@ export function reduceRepairAll(prev: GameState): GameState {
   return { ...prev, durability };
 }
 
-export function reduceEquipItem(prev: GameState, slot: EquipmentSlot, itemId: string): GameState {
+export function reduceEquipItem(prev: GameState, slot: EquipmentSlot, itemId: string, requestedRarity?: Rarity): GameState {
   const qty = prev.inventory[itemId] ?? 0;
   if (qty <= 0) return prev; // don't have the item
 
@@ -1285,6 +1318,9 @@ export function reduceEquipItem(prev: GameState, slot: EquipmentSlot, itemId: st
   const forgedEquipmentRarities = Object.fromEntries(
     Object.entries(prev.forgedEquipmentRarities).map(([id, rarities]) => [id, [...rarities]]),
   );
+  const forgedEquipmentAffixes = Object.fromEntries(
+    Object.entries(prev.forgedEquipmentAffixes).map(([id, affixes]) => [id, [...affixes]]),
+  );
 
   if (current) {
     // Put current item back in inventory
@@ -1292,6 +1328,8 @@ export function reduceEquipItem(prev: GameState, slot: EquipmentSlot, itemId: st
     const currentRarity = current.metadata?.forgedRarity;
     if (typeof currentRarity === 'string' && RARITY_ORDER.includes(currentRarity as Rarity)) {
       forgedEquipmentRarities[current.itemId] = [...(forgedEquipmentRarities[current.itemId] ?? []), currentRarity as Rarity];
+      const currentAffix = current.metadata?.affix as ForgedEquipmentAffix | undefined;
+      forgedEquipmentAffixes[current.itemId] = [...(forgedEquipmentAffixes[current.itemId] ?? []), currentAffix ?? null];
     }
   }
 
@@ -1306,11 +1344,16 @@ export function reduceEquipItem(prev: GameState, slot: EquipmentSlot, itemId: st
   // server-side ItemInstance (see gameserver work).
   const forgedRolls = forgedEquipmentRarities[itemId] ?? [];
   let forgedRarity: Rarity | undefined;
+  let forgedAffix: ForgedEquipmentAffix | null = null;
   if (forgedRolls.length > 0) {
-    const bestIndex = forgedRolls.reduce((best, rarity, index) =>
+    const requestedIndex = requestedRarity ? forgedRolls.findIndex((rarity) => rarity === requestedRarity) : -1;
+    const bestIndex = requestedIndex >= 0 ? requestedIndex : forgedRolls.reduce((best, rarity, index) =>
       RARITY_ORDER.indexOf(rarity) > RARITY_ORDER.indexOf(forgedRolls[best]) ? index : best, 0);
     [forgedRarity] = forgedRolls.splice(bestIndex, 1);
+    const affixes = forgedEquipmentAffixes[itemId] ?? [];
+    [forgedAffix] = affixes.splice(bestIndex, 1);
     if (forgedRolls.length === 0) delete forgedEquipmentRarities[itemId];
+    if (affixes.length === 0) delete forgedEquipmentAffixes[itemId];
   }
   const newItem = {
     uid: `${itemId}-${Date.now()}-${nextId()}`,
@@ -1318,7 +1361,10 @@ export function reduceEquipItem(prev: GameState, slot: EquipmentSlot, itemId: st
     quantity: 1,
     equipped: true,
     durability: 100,
-    metadata: forgedRarity ? { forgedRarity } : {},
+    metadata: forgedRarity ? {
+      forgedRarity,
+      ...(forgedAffix ? { affix: forgedAffix, bonusStat: forgedAffix.stat, bonusValue: forgedAffix.value } : {}),
+    } : {},
   } as InventoryItem;
 
   equipment[slot] = newItem;
@@ -1329,6 +1375,7 @@ export function reduceEquipItem(prev: GameState, slot: EquipmentSlot, itemId: st
     inventory,
     equipment,
     forgedEquipmentRarities,
+    forgedEquipmentAffixes,
     actionLog: [
       { id: nextId(), skill: 'smithing' as SkillId, text: `Equipped ${ITEM_BY_ID[itemId]?.name ?? itemId}`, rare: false, ts: now },
       ...prev.actionLog,
@@ -1344,9 +1391,12 @@ export function reduceUnequipItem(prev: GameState, slot: EquipmentSlot): GameSta
   const inventory = { ...prev.inventory, [current.itemId]: (prev.inventory[current.itemId] ?? 0) + 1 };
   const equipment: EquipmentSlots = { ...prev.equipment, [slot]: null };
   const forgedEquipmentRarities = { ...prev.forgedEquipmentRarities };
+  const forgedEquipmentAffixes = { ...prev.forgedEquipmentAffixes };
   const currentRarity = current.metadata?.forgedRarity;
   if (typeof currentRarity === 'string' && RARITY_ORDER.includes(currentRarity as Rarity)) {
     forgedEquipmentRarities[current.itemId] = [...(prev.forgedEquipmentRarities[current.itemId] ?? []), currentRarity as Rarity];
+    const currentAffix = current.metadata?.affix as ForgedEquipmentAffix | undefined;
+    forgedEquipmentAffixes[current.itemId] = [...(prev.forgedEquipmentAffixes[current.itemId] ?? []), currentAffix ?? null];
   }
 
   const now = Date.now();
@@ -1355,6 +1405,7 @@ export function reduceUnequipItem(prev: GameState, slot: EquipmentSlot): GameSta
     inventory,
     equipment,
     forgedEquipmentRarities,
+    forgedEquipmentAffixes,
     actionLog: [
       { id: nextId(), skill: 'smithing' as SkillId, text: `Unequipped ${ITEM_BY_ID[current.itemId]?.name ?? current.itemId}`, rare: false, ts: now },
       ...prev.actionLog,

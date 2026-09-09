@@ -7,7 +7,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { SkillId, FoodItem, BaseStats, EquipmentSlot } from '@premium-rpg/shared-types';
+import type { SkillId, FoodItem, BaseStats, EquipmentSlot, Rarity } from '@premium-rpg/shared-types';
 import type { GameClient } from './game/game-client';
 import { LocalGameClient } from './game/local-game-client';
 import { mergeSeed, xpStepForLevel } from './game/service';
@@ -49,7 +49,7 @@ export interface GameContextValue {
   clearCombatLog: () => void;
   repairAll: () => void;
   resetProgress: () => void;
-  equipItem: (slot: EquipmentSlot, itemId: string) => void;
+  equipItem: (slot: EquipmentSlot, itemId: string, rarity?: Rarity) => void;
   unequipItem: (slot: EquipmentSlot) => void;
   forgeWeapon: () => void;
   awakenWeapon: () => void;
@@ -195,7 +195,7 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
   const eatFood = useCallback(() => run((c) => c.eatFood()), [run]);
   const clearCombatLog = useCallback(() => run((c) => c.clearCombatLog()), [run]);
   const repairAll = useCallback(() => run((c) => c.repairAll()), [run]);
-  const equipItem = useCallback((slot: EquipmentSlot, itemId: string) => run((c) => c.equipItem(slot, itemId)), [run]);
+  const equipItem = useCallback((slot: EquipmentSlot, itemId: string, rarity?: Rarity) => run((c) => c.equipItem(slot, itemId, rarity)), [run]);
   const unequipItem = useCallback((slot: EquipmentSlot) => run((c) => c.unequipItem(slot)), [run]);
   const forgeWeapon = useCallback(() => run((c) => c.forgeWeapon()), [run]);
   const awakenWeapon = useCallback(() => run((c) => c.awakenWeapon()), [run]);

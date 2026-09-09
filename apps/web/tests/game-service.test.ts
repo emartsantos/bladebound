@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_ENEMIES, ITEM_BY_ID } from '@premium-rpg/game-data';
-import type { EquipmentSlots, SkillId } from '@premium-rpg/shared-types';
+import type { EquipmentSlots, SkillId, Rarity } from '@premium-rpg/shared-types';
 import type { GamePersistence, GameSaveData } from '@/lib/persistence/game-persistence';
 import type { GameState, SeedConfig } from '@/lib/game/service';
 import {
@@ -48,11 +48,13 @@ import {
   SUMMON_TREASURY,
   MAX_OFFLINE_CATCHUP_PER_TICK,
   rollForgedRarity,
+  rollForgedAffix,
+  inventoryRarityStacks,
   reduceChallengeEmberColossus,
   EMBER_COLOSSUS_START,
 } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
-import { getCurrentTasks, levelForXp } from '@premium-rpg/game-engine';
+import { getCurrentTasks, levelForXp, SMITHING_RECIPES } from '@premium-rpg/game-engine';
 import { GAME_EVENTS, activeEvents, upcomingEvents, expiredEvents, EVENT_BY_ID } from '@/lib/game/events';
 
 // ── helpers ─────────────────────────────────────────────────────
@@ -94,6 +96,26 @@ describe('smithing equipment rarity', () => {
     expect(ITEM_BY_ID.iron_helmet.equipmentSlot).toBe('helmet');
   });
 
+  it('provides complete bronze-through-rune armor sets and recipes', () => {
+    for (const tier of ['bronze', 'iron', 'steel', 'mithril', 'adamant', 'rune']) {
+      for (const piece of ['shield', 'helmet', 'platebody', 'gloves', 'legs', 'boots']) {
+        const itemId = `${tier}_${piece}`;
+        expect(ITEM_BY_ID[itemId]?.equipmentSlot).toBeTruthy();
+        expect(SMITHING_RECIPES.some((recipe) => recipe.output.some((output) => output.itemId === itemId))).toBe(true);
+      }
+      expect(SMITHING_RECIPES.some((recipe) => recipe.output.some((output) => output.itemId === `${tier}_sword`))).toBe(true);
+    }
+  });
+
+  it('separates forged copies into rarity stacks and rolls affixes', () => {
+    const base = mergeSeed(makeConfig());
+    const state = { ...base, inventory: { ...base.inventory, bronze_sword: 3 }, forgedEquipmentRarities: { bronze_sword: ['rare', 'epic'] as Rarity[] } };
+    expect(inventoryRarityStacks(state, 'bronze_sword', 3, 'common')).toEqual([
+      { rarity: 'epic', quantity: 1 }, { rarity: 'rare', quantity: 1 }, { rarity: 'common', quantity: 1 },
+    ]);
+    expect(rollForgedAffix('epic', 40, 0.1)).toMatchObject({ name: 'Mighty', value: 9 });
+  });
+
   it('never rolls below base rarity and permits legendary quality', () => {
     expect(rollForgedRarity('rare', 1, 0.99)).toBe('rare');
     expect(rollForgedRarity('common', 99, 0)).toBe('legendary');
@@ -105,12 +127,15 @@ describe('smithing equipment rarity', () => {
       ...base,
       inventory: { ...base.inventory, bronze_sword: 1 },
       forgedEquipmentRarities: { bronze_sword: ['epic'] },
+      forgedEquipmentAffixes: { bronze_sword: [{ name: 'Mighty', stat: 'strength', value: 7 }] },
     };
     const equipped = reduceEquipItem(forged, 'weapon', 'bronze_sword');
     expect(equipped.equipment.weapon?.metadata?.forgedRarity).toBe('epic');
+    expect(equipped.equipment.weapon?.metadata?.bonusValue).toBe(7);
     expect(equipped.forgedEquipmentRarities.bronze_sword).toBeUndefined();
     const unequipped = reduceUnequipItem(equipped, 'weapon');
     expect(unequipped.forgedEquipmentRarities.bronze_sword).toEqual(['epic']);
+    expect(unequipped.forgedEquipmentAffixes.bronze_sword?.[0]).toMatchObject({ name: 'Mighty' });
   });
 });
 

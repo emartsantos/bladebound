@@ -14,7 +14,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { usePlayer } from '@/lib/use-player';
 import { useGame } from '@/lib/game-state';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
-import { xpStepForLevel, FORGE_COSTS, AWAKENING_COSTS, REBIRTH_COSTS, REBIRTH_LEVELS, heroReforgeCost, weaponRerollCost, forgedInventoryRarity } from '@/lib/game/service';
+import { xpStepForLevel, FORGE_COSTS, AWAKENING_COSTS, REBIRTH_COSTS, REBIRTH_LEVELS, heroReforgeCost, weaponRerollCost, forgedInventoryRarity, inventoryRarityStacks } from '@/lib/game/service';
 import { itemBucket, itemHeal, itemName } from '@/lib/item-names';
 import { SKILL_ORDER, skillLabel } from '@/lib/skills-meta';
 import { SkillIcon, ITEM_KIND_ICONS, EQUIPMENT_SLOT_ICONS } from '@/components/game/icons';
@@ -30,7 +30,7 @@ import { SummoningSection } from '@/components/SummoningSection';
 import { getPlayerClass } from '@/lib/classes';
 import { assetPath } from '@/lib/asset-path';
 import { APP_VERSION_LABEL } from '@/lib/version';
-import { equipmentPower } from '@/lib/combat-progression';
+import { equipmentPower, equipmentPreviewPower } from '@/lib/combat-progression';
 import { enemyArt } from '@/lib/enemy-art';
 import { checkSupabaseReadiness, type SupabaseReadiness } from '@/lib/supabase/config';
 import { useAuth } from '@/context/auth-context';
@@ -265,6 +265,11 @@ function InventorySection() {
       return itemName(id).toLowerCase().includes(query.toLowerCase()) || id.toLowerCase().includes(query.toLowerCase());
     })
     .sort((a, b) => itemName(a[0]).localeCompare(itemName(b[0])));
+  const displayEntries = entries.flatMap(([id, qty]) => {
+    const def = ITEM_BY_ID[id];
+    if (!def?.equipmentSlot) return [{ id, qty, rarity: def?.rarity ?? 'common' as Rarity, key: id }];
+    return inventoryRarityStacks(state, id, qty, def.rarity).map((stack) => ({ id, qty: stack.quantity, rarity: stack.rarity, key: `${id}:${stack.rarity}` }));
+  });
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -299,7 +304,7 @@ function InventorySection() {
         }
       />
 
-      {entries.length === 0 ? (
+      {displayEntries.length === 0 ? (
         <EmptyState
           icon={<LuBackpack className="h-7 w-7" />}
           title={query ? 'No matches for your search' : 'Nothing here yet'}
@@ -307,17 +312,16 @@ function InventorySection() {
         />
       ) : (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
-          {entries.map(([id, qty]) => {
+          {displayEntries.map(({ id, qty, rarity, key }) => {
             const heal = itemHeal(id);
             const bucketKind = itemBucket(id);
             const def = ITEM_BY_ID[id];
-            const rarity = def ? forgedInventoryRarity(state, id, def.rarity) : 'common';
             const treat = RARITY_TREATMENTS[rarity];
             const Icon = bucketKind === 'equipment' && def ? (def.type === 'armor' ? ITEM_KIND_ICONS.armor : ITEM_KIND_ICONS.weapon) : ITEM_KIND_ICONS[bucketKind];
             const art = itemArt(id);
             const tip = `${itemName(id)} · ${rarity}${heal !== undefined ? ` · Heals ${heal} HP` : ''} · ${qty}x`;
             return (
-              <div key={id} className="flex flex-col items-center gap-1">
+              <div key={key} className="flex flex-col items-center gap-1">
                 <Tooltip content={tip} side="top">
                   <ItemSlot rarity={rarity} size="md" qty={qty} aria-label={itemName(id)}>
                     {art ? (
@@ -364,7 +368,8 @@ function EquipmentSection() {
   // Get available items from inventory for each slot
   const availableItems = Object.entries(state.inventory)
     .filter(([id, qty]) => qty > 0 && ITEM_BY_ID[id] !== undefined)
-    .map(([id]) => ({ id, def: ITEM_BY_ID[id] }));
+    .flatMap(([id, qty]) => inventoryRarityStacks(state, id, qty, ITEM_BY_ID[id].rarity)
+      .map((stack) => ({ id, def: ITEM_BY_ID[id], rarity: stack.rarity, quantity: stack.quantity })));
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -409,12 +414,12 @@ function EquipmentSection() {
                   <div className="flex flex-wrap gap-1">
                     {availableForSlot.map((a) => (
                       <GameButton
-                        key={a.id}
+                        key={`${a.id}:${a.rarity}`}
                         variant="ghost"
-                        onClick={() => equipItem(slot, a.id)}
+                        onClick={() => equipItem(slot, a.id, a.rarity)}
                         className="px-2 py-1 text-[10px]"
                       >
-                        Equip {a.def.name}
+                        Equip {a.rarity} {a.def.name} ({a.quantity})
                       </GameButton>
                     ))}
                   </div>
@@ -424,6 +429,8 @@ function EquipmentSection() {
           }
 
           const equippedRarity = (equipped.metadata?.forgedRarity as Rarity | undefined) ?? equippedDef?.rarity ?? 'common';
+          const equippedPower = equipmentPreviewPower(equipped.itemId, equippedRarity);
+          const affix = equipped.metadata?.affix as { name?: string; stat?: string; value?: number } | undefined;
           const treat = RARITY_TREATMENTS[equippedRarity] ?? RARITY_TREATMENTS.common;
           const dur = state.durability[equipped.uid] ?? 100;
           const art = itemArt(equipped.itemId);
@@ -442,11 +449,20 @@ function EquipmentSection() {
                 <div className="section-label">{SLOT_LABEL[slot]}</div>
                 <div className="truncate text-xs font-semibold" style={{ color: treat.bright }}>{equippedDef?.name ?? 'Unknown'}</div>
                 <div className="text-[9px] uppercase tracking-wide" style={{ color: treat.bright }}>{equippedRarity}</div>
+                {affix?.name && <div className="text-[10px] text-emberLight">{affix.name}: +{affix.value} {affix.stat}</div>}
                 <div className="flex items-center gap-2">
                   <Bar variant="resource" pct={dur} height={4} className="mt-1 flex-1" />
                   <span className="font-mono text-[9px] text-stone">Dur {dur}%</span>
                 </div>
               </div>
+              {availableForSlot.length > 0 && <div className="flex max-w-[15rem] flex-col gap-1">
+                {availableForSlot.slice(0, 3).map((candidate) => {
+                  const delta = equipmentPreviewPower(candidate.id, candidate.rarity) - equippedPower;
+                  return <GameButton key={`${candidate.id}:${candidate.rarity}`} variant="ghost" onClick={() => equipItem(slot, candidate.id, candidate.rarity)} className="justify-between px-2 py-1 text-[10px]">
+                    <span>{candidate.rarity} {candidate.def.name}</span><span className={delta >= 0 ? 'text-verdant' : 'text-danger'}>{delta >= 0 ? '+' : ''}{delta}</span>
+                  </GameButton>;
+                })}
+              </div>}
               <GameButton variant="ghost" onClick={() => unequipItem(slot)} className="ml-2">
                 <LuX className="h-3.5 w-3.5" /> Unequip
               </GameButton>

@@ -211,9 +211,9 @@ export class LocalGameClient implements GameClient {
     this.setState(reduceRepairAll(this.state), 'equipment_repair');
   }
 
-  equipItem(slot: EquipmentSlot, itemId: string): void {
+  equipItem(slot: EquipmentSlot, itemId: string, rarity?: import('@premium-rpg/shared-types').Rarity): void {
     if (!this.heroAvailable()) return;
-    this.setState(reduceEquipItem(this.state, slot, itemId));
+    this.setState(reduceEquipItem(this.state, slot, itemId, rarity));
   }
 
   unequipItem(slot: EquipmentSlot): void {
