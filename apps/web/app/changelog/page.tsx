@@ -24,6 +24,19 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.6.1',
+    type: 'patch',
+    date: '2026-09-08',
+    changes: [
+      { category: 'Fixed', description: 'Bronze and iron shields and helmets forged at the smithy are now registered equipment and can be equipped' },
+      { category: 'Fixed', description: 'Crafting validates recipe level and awards XP using the recipe’s authoritative skill, including queued jobs' },
+      { category: 'Added', description: 'Forged equipment now rolls a persistent Common–Legendary quality, with better upgrade odds at higher Smithing levels' },
+      { category: 'Added', description: 'Forged quality grants 5% Uncommon, 12% Rare, 22% Epic, or 35% Legendary equipment-stat bonuses' },
+      { category: 'Changed', description: 'Inventory, equipment, and craft-result messages now display forged rarity; the best available quality is equipped first' },
+      { category: 'Changed', description: 'Save schema upgraded to v8 while preserving all existing characters and inventory' },
+    ],
+  },
+  {
     version: 'v0.6.0',
     type: 'major',
     date: '2026-09-08',

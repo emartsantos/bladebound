@@ -83,6 +83,20 @@ export const ARMOR_DEFINITIONS: ItemDefinition[] = ARMOR_TIERS.map((t) =>
   )
 );
 
+// Early smithing recipes use dedicated off-hand and helmet pieces. Keeping
+// them in the central registry makes their recipe output equippable (and lets
+// the web client attach a rolled forged rarity to the resulting instance).
+export const SMITHED_ARMOR_DEFINITIONS: ItemDefinition[] = [
+  equip('bronze_shield', 'Bronze Shield', 'armor', 'common', 'bronze', 'offhand', 1,
+    { defense: 2, armor: 1 }, 'crafting', [], 'A dependable bronze shield.'),
+  equip('iron_shield', 'Iron Shield', 'armor', 'common', 'iron', 'offhand', 10,
+    { defense: 4, armor: 3, vitality: 1 }, 'crafting', [], 'A sturdy iron shield.'),
+  equip('bronze_helmet', 'Bronze Helmet', 'armor', 'common', 'bronze', 'helmet', 1,
+    { armor: 1, vitality: 1 }, 'crafting', [], 'A simple bronze helmet.'),
+  equip('iron_helmet', 'Iron Helmet', 'armor', 'common', 'iron', 'helmet', 10,
+    { armor: 3, vitality: 2 }, 'crafting', [], 'A solid iron helmet.'),
+];
+
 // ─── UNIQUE / BOSS DROP ITEMS ────────────────────────────────────────
 // Bespoke items with named passives — the "more than color" payoff.
 
@@ -252,6 +266,7 @@ export const VOID_PIKE: ItemDefinition = {
 export const ALL_ITEM_DEFINITIONS: ItemDefinition[] = [
   ...WEAPON_DEFINITIONS,
   ...ARMOR_DEFINITIONS,
+  ...SMITHED_ARMOR_DEFINITIONS,
   VAMPIRE_FANG,
   LICH_PHILACTERY,
   FROST_CROWN,

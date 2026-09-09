@@ -6,7 +6,7 @@ import type { SectionId } from '@premium-rpg/ui-tokens';
 import { RARITY_TREATMENTS } from '@premium-rpg/ui-tokens';
 import { LuClock, LuLock, LuMap, LuCompass, LuSparkles, LuHammer, LuFlame, LuClipboardList, LuBookMarked, LuTrophy, LuShoppingBag, LuSearch, LuCoins, LuSwords, LuSlidersHorizontal, LuScrollText, LuBackpack, LuX, LuCircleCheck, LuHistory, LuMail, LuCalendarDays, LuRefreshCw } from 'react-icons/lu';
 import type { IconType } from 'react-icons';
-import type { QuestDefinition, PlayerSummary, EquipmentSlot, TaskAssignment } from '@premium-rpg/shared-types';
+import type { QuestDefinition, PlayerSummary, EquipmentSlot, TaskAssignment, Rarity } from '@premium-rpg/shared-types';
 import type { Region } from '@premium-rpg/game-data';
 import { ITEM_BY_ID, QUESTS, ALL_REGIONS, ALL_ENEMIES, TASK_BY_ID, ACHIEVEMENTS, COLLECTION_ENTRIES } from '@premium-rpg/game-data';
 import { getCurrentTasks } from '@premium-rpg/game-engine';
@@ -14,7 +14,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { usePlayer } from '@/lib/use-player';
 import { useGame } from '@/lib/game-state';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
-import { xpStepForLevel, FORGE_COSTS, AWAKENING_COSTS, REBIRTH_COSTS, REBIRTH_LEVELS, heroReforgeCost, weaponRerollCost } from '@/lib/game/service';
+import { xpStepForLevel, FORGE_COSTS, AWAKENING_COSTS, REBIRTH_COSTS, REBIRTH_LEVELS, heroReforgeCost, weaponRerollCost, forgedInventoryRarity } from '@/lib/game/service';
 import { itemBucket, itemHeal, itemName } from '@/lib/item-names';
 import { SKILL_ORDER, skillLabel } from '@/lib/skills-meta';
 import { SkillIcon, ITEM_KIND_ICONS, EQUIPMENT_SLOT_ICONS } from '@/components/game/icons';
@@ -44,12 +44,14 @@ function itemArt(id: string): string | null {
   return null;
 }
 
-function RarityLabel({ id, name }: { id: string; name: string }) {
+function RarityLabel({ id, name, rarity }: { id: string; name: string; rarity?: Rarity }) {
   const def = ITEM_BY_ID[id];
-  const treat = def ? RARITY_TREATMENTS[def.rarity] : undefined;
+  const effectiveRarity = rarity ?? def?.rarity;
+  const treat = effectiveRarity ? RARITY_TREATMENTS[effectiveRarity] : undefined;
   return (
-    <span className="truncate text-[11px] font-medium" style={{ color: treat?.bright ?? '#6b6660' }}>
-      {name}
+    <span className="text-center text-[11px] font-medium" style={{ color: treat?.bright ?? '#6b6660' }}>
+      <span className="block truncate">{name}</span>
+      {effectiveRarity && <span className="block text-[9px] uppercase tracking-wide">{effectiveRarity}</span>}
     </span>
   );
 }
@@ -309,14 +311,15 @@ function InventorySection() {
             const heal = itemHeal(id);
             const bucketKind = itemBucket(id);
             const def = ITEM_BY_ID[id];
-            const treat = def ? RARITY_TREATMENTS[def.rarity] : undefined;
+            const rarity = def ? forgedInventoryRarity(state, id, def.rarity) : 'common';
+            const treat = RARITY_TREATMENTS[rarity];
             const Icon = bucketKind === 'equipment' && def ? (def.type === 'armor' ? ITEM_KIND_ICONS.armor : ITEM_KIND_ICONS.weapon) : ITEM_KIND_ICONS[bucketKind];
             const art = itemArt(id);
-            const tip = `${itemName(id)}${heal !== undefined ? ` · Heals ${heal} HP` : ''} · ${qty}x`;
+            const tip = `${itemName(id)} · ${rarity}${heal !== undefined ? ` · Heals ${heal} HP` : ''} · ${qty}x`;
             return (
               <div key={id} className="flex flex-col items-center gap-1">
                 <Tooltip content={tip} side="top">
-                  <ItemSlot rarity={def?.rarity ?? 'common'} size="md" qty={qty} aria-label={itemName(id)}>
+                  <ItemSlot rarity={rarity} size="md" qty={qty} aria-label={itemName(id)}>
                     {art ? (
                       <img src={art} alt="" className="h-8 w-8 object-contain" />
                     ) : (
@@ -324,7 +327,7 @@ function InventorySection() {
                     )}
                   </ItemSlot>
                 </Tooltip>
-                <RarityLabel id={id} name={itemName(id)} />
+                <RarityLabel id={id} name={itemName(id)} rarity={rarity} />
               </div>
             );
           })}
@@ -420,7 +423,8 @@ function EquipmentSection() {
             );
           }
 
-          const treat = RARITY_TREATMENTS[equippedDef?.rarity ?? 'common'] ?? RARITY_TREATMENTS.common;
+          const equippedRarity = (equipped.metadata?.forgedRarity as Rarity | undefined) ?? equippedDef?.rarity ?? 'common';
+          const treat = RARITY_TREATMENTS[equippedRarity] ?? RARITY_TREATMENTS.common;
           const dur = state.durability[equipped.uid] ?? 100;
           const art = itemArt(equipped.itemId);
           const style = { borderColor: treat.border, boxShadow: treat.animation === 'pulse' ? undefined : treat.glow === 'none' ? undefined : treat.glow };
@@ -437,6 +441,7 @@ function EquipmentSection() {
               <div className="min-w-0 flex-1">
                 <div className="section-label">{SLOT_LABEL[slot]}</div>
                 <div className="truncate text-xs font-semibold" style={{ color: treat.bright }}>{equippedDef?.name ?? 'Unknown'}</div>
+                <div className="text-[9px] uppercase tracking-wide" style={{ color: treat.bright }}>{equippedRarity}</div>
                 <div className="flex items-center gap-2">
                   <Bar variant="resource" pct={dur} height={4} className="mt-1 flex-1" />
                   <span className="font-mono text-[9px] text-stone">Dur {dur}%</span>
