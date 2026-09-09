@@ -25,7 +25,8 @@ export function HeroesSection() {
   const [message, setMessage] = useState('');
   const canAfford = state.investment.bhc + 0.000001 >= SUMMON_COST;
   const rosterFull = characters.length >= HERO_CAP;
-  const canSummon = canAfford && !rosterFull && !authState.isGuest;
+  const heroLocked = state.marketplace.heroLocked;
+  const canSummon = canAfford && !rosterFull && !authState.isGuest && !heroLocked;
   const today = new Date().toISOString().slice(0, 10);
   const battlesToday = state.summoning.battleDay === today ? state.summoning.battlesToday : 0;
   const ledger = useMemo(() => state.summoning.heroes, [state.summoning.heroes]);
@@ -34,7 +35,7 @@ export function HeroesSection() {
     if (authState.isGuest) { setMessage('Create an account to grow a hero roster.'); return; }
     setMessage('');
     const result = await summonHero();
-    if (!result) { setMessage(rosterFull ? `Your roster is full (${HERO_CAP}/${HERO_CAP} heroes).` : 'You need more BHC to summon.'); return; }
+    if (!result) { setMessage(heroLocked ? 'This hero is locked by an active marketplace listing. Cancel it before summoning.' : rosterFull ? `Your roster is full (${HERO_CAP}/${HERO_CAP} heroes).` : `This hero needs ${SUMMON_COST.toFixed(2)} BHC to summon.`); return; }
     if (result.duplicate) setMessage(`${result.name} · duplicate — +${result.essenceGain} essence. That hero is already in your roster.`);
     else setMessage(`${result.rarity} ${result.name} summoned and added to your roster.`);
   }
@@ -107,7 +108,7 @@ export function HeroesSection() {
                 : 'Summon a new hero directly into your roster. Every account begins with one free common hero; the Gate joins a fresh hero at level 1.'}
             </p>
             <GameButton variant="primary" disabled={!canSummon} onClick={() => void handleSummon()} className="mx-auto mt-5 px-6 py-2">
-              <LuFlame className="h-4 w-4" /> {rosterFull ? 'Roster full' : authState.isGuest ? 'Create an account to summon' : `Summon · ${SUMMON_COST.toFixed(2)} BHC`}
+              <LuFlame className="h-4 w-4" /> {rosterFull ? 'Roster full' : heroLocked ? 'Listing active' : authState.isGuest ? 'Create an account to summon' : `Summon · ${SUMMON_COST.toFixed(2)} BHC`}
             </GameButton>
             <p className="mt-2 text-[10px] text-stone">Single summon only · no discount · server-verifiable roll in production</p>
             {message && <p className="mt-3 text-[11px] text-mist">{message}</p>}
