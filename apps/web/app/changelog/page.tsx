@@ -24,6 +24,13 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.8.1', type: 'patch', date: '2026-09-09',
+    changes: [
+      { category: 'Fixed', description: 'Account confirmation links now return players to the complete GitHub Pages /bladebound/ route instead of the domain root' },
+      { category: 'Changed', description: 'Registration confirmation emails now use the Bladehound dark medieval theme and production site URL' },
+    ],
+  },
+  {
     version: 'v0.8.0', type: 'minor', date: '2026-09-09',
     changes: [
       { category: 'Added', description: 'Reusable data-driven event catalog with centralized UTC schedules, cadence, descriptions, and reward previews' },

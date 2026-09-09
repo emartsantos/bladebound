@@ -68,7 +68,9 @@ async function login(email: string, password: string): Promise<AuthLoginResponse
 
 async function register(email: string, password: string, characterClass: PlayerClassId = DEFAULT_PLAYER_CLASS): Promise<AuthRegisterResponse> {
   const username = email.trim().split('@')[0] || 'Hunter';
-  const response = await supabaseFetch('/auth/v1/signup', { method: 'POST', body: JSON.stringify({ email: email.trim(), password, data: { username, character_class: characterClass } }) });
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+  const redirectTo = `${window.location.origin}${basePath}/`;
+  const response = await supabaseFetch(`/auth/v1/signup?redirect_to=${encodeURIComponent(redirectTo)}`, { method: 'POST', body: JSON.stringify({ email: email.trim(), password, data: { username, character_class: characterClass } }) });
   if (!response.ok) return { success: false, session: null, error: await readError(response) };
   const token = await response.json() as Partial<TokenResponse>;
   if (!token.access_token || !token.user) return { success: false, session: null, error: 'Check your email to confirm the account, then log in.' };
