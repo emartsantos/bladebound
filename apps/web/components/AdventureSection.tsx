@@ -13,7 +13,7 @@ import type { IconType } from 'react-icons';
 import { useGame } from '@/lib/game-state';
 import { usePlayer } from '@/lib/use-player';
 import { enemyArt } from '@/lib/enemy-art';
-import { xpStepForLevel } from '@/lib/game/service';
+import { xpStepForLevel, EMBER_COLOSSUS_END, emberEventActive, emberEventDay } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { COMBAT_STYLE_ICONS } from '@/components/game/icons';
 import { SectionHeader, Panel, PanelLabel, Bar, BarLabel, GameButton, EmptyState } from '@/components/game/primitives';
@@ -115,6 +115,30 @@ export function AdventureSection() {
       <Panel bodyClassName="px-4 py-3">
         <BarLabel left="Combat progress" right={`Level ${state.combatLevel} · ${combatInto.toLocaleString()} / ${combatNeed.toLocaleString()}`} className="mb-1.5" />
         <Bar variant="xp" pct={combatPct} />
+      </Panel>
+
+      <Panel bodyClassName="overflow-hidden p-0">
+        <div className="bg-[radial-gradient(circle_at_top_right,rgba(212,105,47,.28),transparent_55%)] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-emberLight">Limited event · Sep 9–16 UTC</div>
+              <h2 className="mt-1 font-display text-lg text-bone">The Ember Colossus</h2>
+              <p className="mt-1 max-w-xl text-xs text-mist">One free attempt each UTC day. Victories grant 0.25 BHC, 10 Coal, and 5 Iron Ore. Your first victory also awards the exclusive Epic Ember Colossus Greatsword.</p>
+            </div>
+            <GameButton
+              variant="primary"
+              disabled={!emberEventActive() || Boolean(state.emberColossus.attemptsByDay[emberEventDay()])}
+              onClick={game.challengeEmberColossus}
+            >
+              <LuCrown className="h-4 w-4" /> {state.emberColossus.attemptsByDay[emberEventDay()] ? 'Attempt used today' : 'Challenge boss'}
+            </GameButton>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-4 font-mono text-[10px] text-stone">
+            <span>Victories {state.emberColossus.victories}</span>
+            <span>Epic weapon {state.emberColossus.weaponClaimed ? 'claimed' : 'unclaimed'}</span>
+            <span>Ends {new Date(EMBER_COLOSSUS_END).toLocaleString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', hour: 'numeric' })} UTC</span>
+          </div>
+        </div>
       </Panel>
 
       <Panel bodyClassName="px-4 py-3">

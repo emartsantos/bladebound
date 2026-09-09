@@ -234,6 +234,13 @@ export const SERPENT_FANG: ItemDefinition = equip(
   'A fang of the Marsh Serpent, dripping with pale venom.'
 );
 
+export const EMBER_COLOSSUS_GREATSWORD: ItemDefinition = equip(
+  'ember_colossus_greatsword', 'Ember Colossus Greatsword', 'weapon', 'epic', 'dragon', 'weapon', 20,
+  { damage: 32, strength: 20, vitality: 8, critDamage: 15 }, 'event',
+  [{ id: 'colossus_flame', name: 'Colossus Flame', description: '+12% damage while at full health.', category: 'damage', value: 0.12, condition: 'full_hp' }],
+  'A seven-day event trophy hammered from the Colossus core.'
+);
+
 // ─── RARE GATHERING DROPS ────────────────────────────────────────────
 // Rare proc drops from skilling (gathering), not equipment.
 
@@ -276,6 +283,7 @@ export const ALL_ITEM_DEFINITIONS: ItemDefinition[] = [
   UNMAKER_HEART,
   ABYSSAL_SHARD,
   SERPENT_FANG,
+  EMBER_COLOSSUS_GREATSWORD,
   COSMIC_CRYSTAL,
   ETHEREAL_WOOD,
   VOID_PIKE,

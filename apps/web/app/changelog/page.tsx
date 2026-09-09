@@ -24,6 +24,15 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.7.0', type: 'minor', date: '2026-09-09',
+    changes: [
+      { category: 'Added', description: 'Seven-day Ember Colossus limited boss event running September 9–16 UTC with one free attempt per account each day' },
+      { category: 'Added', description: 'Victories award 0.25 BHC, 10 Coal, and 5 Iron Ore; the first victory grants the exclusive Epic Ember Colossus Greatsword' },
+      { category: 'Added', description: 'Persistent event attempt history, victory count, reward claim state, countdown, and dedicated Adventure event panel' },
+      { category: 'Changed', description: 'Save schema upgraded to v9 with backward-compatible event initialization' },
+    ],
+  },
+  {
     version: 'v0.6.1',
     type: 'patch',
     date: '2026-09-08',
