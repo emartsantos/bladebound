@@ -53,6 +53,7 @@ import {
 } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { getCurrentTasks, levelForXp } from '@premium-rpg/game-engine';
+import { GAME_EVENTS, activeEvents, upcomingEvents, expiredEvents, EVENT_BY_ID } from '@/lib/game/events';
 
 // ── helpers ─────────────────────────────────────────────────────
 
@@ -130,6 +131,29 @@ describe('Ember Colossus event', () => {
   it('rejects attempts after the seven-day window', () => {
     const base = mergeSeed(makeConfig());
     expect(reduceChallengeEmberColossus(base, 0, EMBER_COLOSSUS_START + 8 * 86_400_000)).toBe(base);
+  });
+});
+
+describe('event framework', () => {
+  it('classifies active, upcoming, and expired events from centralized schedules', () => {
+    const duringEmber = EMBER_COLOSSUS_START + 1;
+    expect(activeEvents(duringEmber).map((event) => event.id)).toContain('ember-colossus-2026');
+    expect(upcomingEvents(duringEmber).map((event) => event.id)).toContain('forgefire-festival-2026');
+    expect(expiredEvents(Date.UTC(2026, 10, 1))).toHaveLength(GAME_EVENTS.length);
+  });
+
+  it('publishes complete schedule and reward-preview metadata', () => {
+    for (const event of GAME_EVENTS) {
+      expect(event.endsAt).toBeGreaterThan(event.startsAt);
+      expect(event.rewardSummary.length).toBeGreaterThan(0);
+      expect(EVENT_BY_ID[event.id]).toBe(event);
+    }
+  });
+
+  it('stores participation under the reusable event id', () => {
+    const won = reduceChallengeEmberColossus(mergeSeed(makeConfig()), 0, EMBER_COLOSSUS_START + 1);
+    expect(won.events.participation['ember-colossus-2026'].victories).toBe(1);
+    expect(won.events.participation['ember-colossus-2026'].featuredRewardClaimed).toBe(true);
   });
 });
 

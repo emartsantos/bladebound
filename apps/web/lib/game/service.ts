@@ -100,6 +100,7 @@ import type { DungeonCombatSlice } from '@/lib/persistence/game-persistence';
 import type { DailyBattleState, BattleHistoryEntry, EmberColossusEventState } from '@/lib/persistence/game-persistence';
 import type { RetentionState, InvestmentState, InvestmentRecord, MarketplaceAssetType, MarketplaceListing, MarketplaceState, SummonClass, SummonRarity, SummoningState } from '@/lib/persistence/game-persistence';
 import { COMBAT_LEVEL_CAP, derivedCombatStats } from '@/lib/combat-progression';
+import { EVENT_BY_ID, EMBER_EVENT_ID, emptyParticipation, eventDay, eventStatus, type EventFrameworkState } from '@/lib/game/events';
 
 export const TICK_MS = 250;
 export const AUTO_FIGHT_GAP_MS = 1100;
@@ -113,45 +114,51 @@ export const SUMMON_COST = 1;
 export const SUMMON_BURN = 0.5;
 export const SUMMON_REWARD_POOL = 0.4;
 export const SUMMON_TREASURY = 0.1;
-export const EMBER_COLOSSUS_START = Date.UTC(2026, 8, 9);
-export const EMBER_COLOSSUS_END = Date.UTC(2026, 8, 16);
+export const EMBER_COLOSSUS_START = EVENT_BY_ID[EMBER_EVENT_ID].startsAt;
+export const EMBER_COLOSSUS_END = EVENT_BY_ID[EMBER_EVENT_ID].endsAt;
 export const EMBER_COLOSSUS_BHC_REWARD = 0.25;
 
 export function emberEventDay(now = Date.now()): string {
-  return new Date(now).toISOString().slice(0, 10);
+  return eventDay(now);
 }
 
 export function emberEventActive(now = Date.now()): boolean {
-  return now >= EMBER_COLOSSUS_START && now < EMBER_COLOSSUS_END;
+  return eventStatus(EVENT_BY_ID[EMBER_EVENT_ID], now) === 'active';
 }
 
-export function reduceChallengeEmberColossus(prev: GameState, roll = Math.random(), now = Date.now()): GameState {
-  const day = emberEventDay(now);
-  if (!emberEventActive(now) || prev.emberColossus.attemptsByDay[day] || prev.marketplace.heroLocked) return prev;
+export function reduceChallengeEvent(prev: GameState, eventId: string, roll = Math.random(), now = Date.now()): GameState {
+  const definition = EVENT_BY_ID[eventId];
+  const day = eventDay(now);
+  const participation = prev.events.participation[eventId] ?? emptyParticipation();
+  if (!definition?.playable || !definition.rewards || eventStatus(definition, now) !== 'active' || participation.attemptsByDay[day] || prev.marketplace.heroLocked) return prev;
   const victory = roll < Math.min(0.95, 0.35 + prev.combatLevel * 0.01);
   let inventory = prev.inventory;
   let bhc = prev.investment.bhc;
-  let weaponClaimed = prev.emberColossus.weaponClaimed;
-  const gains: GainFeed[] = [{ id: nextId(), text: victory ? 'The Ember Colossus falls!' : 'The Colossus drove you back.', kind: victory ? 'rare' : 'info' }];
+  let weaponClaimed = participation.featuredRewardClaimed;
+  const gains: GainFeed[] = [{ id: nextId(), text: victory ? `${definition.name} falls!` : `${definition.name} drove you back.`, kind: victory ? 'rare' : 'info' }];
   if (victory) {
-    inventory = addInventory(inventory, 'coal', 10);
-    inventory = addInventory(inventory, 'iron_ore', 5);
-    bhc += EMBER_COLOSSUS_BHC_REWARD;
-    gains.push({ id: nextId(), text: `+${EMBER_COLOSSUS_BHC_REWARD.toFixed(2)} BHC · 10 Coal · 5 Iron Ore`, kind: 'rare' });
-    if (!weaponClaimed) {
-      inventory = addInventory(inventory, 'ember_colossus_greatsword', 1);
+    for (const item of definition.rewards.items) inventory = addInventory(inventory, item.itemId, item.quantity);
+    bhc += definition.rewards.bhc;
+    gains.push({ id: nextId(), text: definition.rewardSummary, kind: 'rare' });
+    if (!weaponClaimed && definition.rewards.firstVictoryItemId) {
+      inventory = addInventory(inventory, definition.rewards.firstVictoryItemId, 1);
       weaponClaimed = true;
-      gains.push({ id: nextId(), text: 'Epic Ember Colossus Greatsword', kind: 'rare' });
+      gains.push({ id: nextId(), text: itemName(definition.rewards.firstVictoryItemId), kind: 'rare' });
     }
   }
+  const nextParticipation = { attemptsByDay: { ...participation.attemptsByDay, [day]: true }, victories: participation.victories + (victory ? 1 : 0), featuredRewardClaimed: weaponClaimed, history: [{ day, victory, createdAt: now }, ...participation.history].slice(0, 30) };
   return {
     ...prev, inventory, investment: { ...prev.investment, bhc }, gains: pushGains(prev.gains, gains),
+    events: { participation: { ...prev.events.participation, [eventId]: nextParticipation } },
     emberColossus: {
-      attemptsByDay: { ...prev.emberColossus.attemptsByDay, [day]: true },
-      victories: prev.emberColossus.victories + (victory ? 1 : 0), weaponClaimed,
-      history: [{ day, victory, createdAt: now }, ...prev.emberColossus.history].slice(0, 7),
+      attemptsByDay: nextParticipation.attemptsByDay, victories: nextParticipation.victories,
+      weaponClaimed: nextParticipation.featuredRewardClaimed, history: nextParticipation.history,
     },
   };
+}
+
+export function reduceChallengeEmberColossus(prev: GameState, roll = Math.random(), now = Date.now()): GameState {
+  return reduceChallengeEvent(prev, EMBER_EVENT_ID, roll, now);
 }
 export const SUMMONED_HERO_BATTLE_CAP = 5;
 
@@ -254,6 +261,7 @@ export interface GameState {
   marketplace: MarketplaceState;
   summoning: SummoningState;
   emberColossus: EmberColossusEventState;
+  events: EventFrameworkState;
 }
 
 export interface SkillView {
@@ -471,6 +479,7 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     marketplace: seedMarketplace(save?.marketplace),
     summoning: seedSummoning(save?.summoning),
     emberColossus: save?.emberColossus ?? { attemptsByDay: {}, victories: 0, weaponClaimed: false, history: [] },
+    events: save?.events ?? { participation: save?.emberColossus ? { [EMBER_EVENT_ID]: { attemptsByDay: save.emberColossus.attemptsByDay, victories: save.emberColossus.victories, featuredRewardClaimed: save.emberColossus.weaponClaimed, history: save.emberColossus.history } } : {} },
   };
 }
 
@@ -542,6 +551,7 @@ export function gameToSaveData(state: GameState): GameSaveData {
     marketplace: state.marketplace,
     summoning: state.summoning,
     emberColossus: state.emberColossus,
+    events: state.events,
   };
 }
 

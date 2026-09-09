@@ -24,6 +24,19 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.8.0', type: 'minor', date: '2026-09-09',
+    changes: [
+      { category: 'Added', description: 'Reusable data-driven event catalog with centralized UTC schedules, cadence, descriptions, and reward previews' },
+      { category: 'Added', description: 'Event Calendar with active, upcoming, and expired classifications plus live countdowns' },
+      { category: 'Added', description: 'Upcoming event list for Forgefire Festival, Goblin Gold Rush, and Frostbound Hunt' },
+      { category: 'Added', description: 'Persistent per-event attempts, victories, featured reward claims, and participation history' },
+      { category: 'Added', description: 'Expired-event archive preserves schedules, rewards, results, and player participation' },
+      { category: 'Changed', description: 'Ember Colossus migrated onto the reusable framework while retaining backward compatibility with existing saves' },
+      { category: 'Changed', description: 'Global Event Live indicator now reads from the active event catalog instead of hard-coded Ember dates' },
+      { category: 'Changed', description: 'Save schema upgraded to v10 with automatic legacy Ember participation migration' },
+    ],
+  },
+  {
     version: 'v0.7.1', type: 'patch', date: '2026-09-09',
     changes: [
       { category: 'Added', description: 'Persistent animated Event Live indicator in the game header while the Ember Colossus event is active' },
