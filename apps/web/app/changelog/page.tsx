@@ -24,6 +24,14 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v0.7.1', type: 'patch', date: '2026-09-09',
+    changes: [
+      { category: 'Added', description: 'Persistent animated Event Live indicator in the game header while the Ember Colossus event is active' },
+      { category: 'Added', description: 'Header event indicator shows days and hours remaining plus whether today’s free attempt is ready or used' },
+      { category: 'Added', description: 'Clicking the live-event indicator opens Adventure and takes players directly toward the event encounter' },
+    ],
+  },
+  {
     version: 'v0.7.0', type: 'minor', date: '2026-09-09',
     changes: [
       { category: 'Added', description: 'Seven-day Ember Colossus limited boss event running September 9–16 UTC with one free attempt per account each day' },
