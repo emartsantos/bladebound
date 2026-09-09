@@ -1,7 +1,9 @@
-import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, PlayerTaskState, PlayerQuestState, PlayerAchievementState, PlayerCollectionState, BestiaryState } from '@premium-rpg/shared-types';
+import type { CombatEncounter, EquipmentSlots, SkillId, PlayerDungeonState, PlayerTaskState, PlayerQuestState, PlayerAchievementState, PlayerCollectionState, BestiaryState, Rarity } from '@premium-rpg/shared-types';
 import type { ActiveAction, QueuedAction } from '@/lib/game/service';
 
-export const GAME_SAVE_SCHEMA_VERSION = 7;
+export const GAME_SAVE_SCHEMA_VERSION = 8;
+
+export type ForgedEquipmentRarities = Record<string, Rarity[]>;
 
 export interface RetentionMail {
   id: string;
@@ -164,6 +166,8 @@ export interface GameSaveData {
   inventory: Record<string, number>;
   durability: Record<string, number>;
   equipment: EquipmentSlots;
+  /** Rolled rarity for each unequipped item forged by this character. */
+  forgedEquipmentRarities?: ForgedEquipmentRarities;
   combatXp: number;
   combatLevel: number;
   selectedSkill: SkillId;
@@ -203,6 +207,7 @@ export function migrateGameSave(input: GameSaveData): GameSaveData {
     skills: source.skills ?? ({} as GameSaveData['skills']),
     inventory: source.inventory ?? {},
     durability: source.durability ?? {},
+    forgedEquipmentRarities: source.forgedEquipmentRarities ?? {},
     ledger: Array.isArray(source.ledger) ? source.ledger.slice(-500) : [],
     dailyBattle: {
       nextBattleAt: Math.max(0, source.dailyBattle?.nextBattleAt ?? 0),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_ENEMIES } from '@premium-rpg/game-data';
+import { ALL_ENEMIES, ITEM_BY_ID } from '@premium-rpg/game-data';
 import type { EquipmentSlots, SkillId } from '@premium-rpg/shared-types';
 import type { GamePersistence, GameSaveData } from '@/lib/persistence/game-persistence';
 import type { GameState, SeedConfig } from '@/lib/game/service';
@@ -47,6 +47,7 @@ import {
   SUMMON_REWARD_POOL,
   SUMMON_TREASURY,
   MAX_OFFLINE_CATCHUP_PER_TICK,
+  rollForgedRarity,
 } from '@/lib/game/service';
 import { cumulativeXpForLevel } from '@/lib/player-summary';
 import { getCurrentTasks, levelForXp } from '@premium-rpg/game-engine';
@@ -80,6 +81,34 @@ const emptySlots = (): EquipmentSlots => ({
   amulet: null,
   ring: null,
   cape: null,
+});
+
+describe('smithing equipment rarity', () => {
+  it('registers every early forged equipment output as equippable gear', () => {
+    expect(ITEM_BY_ID.bronze_shield.equipmentSlot).toBe('offhand');
+    expect(ITEM_BY_ID.iron_shield.equipmentSlot).toBe('offhand');
+    expect(ITEM_BY_ID.bronze_helmet.equipmentSlot).toBe('helmet');
+    expect(ITEM_BY_ID.iron_helmet.equipmentSlot).toBe('helmet');
+  });
+
+  it('never rolls below base rarity and permits legendary quality', () => {
+    expect(rollForgedRarity('rare', 1, 0.99)).toBe('rare');
+    expect(rollForgedRarity('common', 99, 0)).toBe('legendary');
+  });
+
+  it('moves forged rarity from inventory to equipment and back', () => {
+    const base = mergeSeed(makeConfig());
+    const forged: GameState = {
+      ...base,
+      inventory: { ...base.inventory, bronze_sword: 1 },
+      forgedEquipmentRarities: { bronze_sword: ['epic'] },
+    };
+    const equipped = reduceEquipItem(forged, 'weapon', 'bronze_sword');
+    expect(equipped.equipment.weapon?.metadata?.forgedRarity).toBe('epic');
+    expect(equipped.forgedEquipmentRarities.bronze_sword).toBeUndefined();
+    const unequipped = reduceUnequipItem(equipped, 'weapon');
+    expect(unequipped.forgedEquipmentRarities.bronze_sword).toEqual(['epic']);
+  });
 });
 
 describe('trade action queue', () => {

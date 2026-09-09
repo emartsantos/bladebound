@@ -23,6 +23,7 @@ import type {
   ShopItemDefinition,
   PlayerTaskState,
   QuestEvent,
+  Rarity,
 } from '@premium-rpg/shared-types';
 import {
   getNodesForSkill,
@@ -185,6 +186,7 @@ export interface GameState {
   inventory: Record<string, number>;
   durability: Record<string, number>;
   equipment: EquipmentSlots;
+  forgedEquipmentRarities: Record<string, Rarity[]>;
   activeAction: ActiveAction | null;
   actionQueue: QueuedAction[];
   actionLog: ActionLogEntry[];
@@ -224,6 +226,24 @@ export interface SkillView {
 
 let seq = 0;
 export const nextId = (): number => ++seq;
+
+const RARITY_ORDER: Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+
+/** Roll forge quality without ever lowering the item's native rarity. */
+export function rollForgedRarity(base: Rarity, smithingLevel: number, roll = Math.random()): Rarity {
+  const baseIndex = RARITY_ORDER.indexOf(base);
+  const levelBonus = Math.max(0, Math.min(99, smithingLevel - 1)) / 500;
+  const legendaryChance = 0.005 + levelBonus * 0.05;
+  const doubleUpgradeChance = 0.035 + levelBonus * 0.15;
+  const singleUpgradeChance = 0.22 + levelBonus;
+  const upgrade = roll < legendaryChance ? 4 : roll < doubleUpgradeChance ? 2 : roll < singleUpgradeChance ? 1 : 0;
+  return RARITY_ORDER[Math.min(RARITY_ORDER.length - 1, baseIndex + upgrade)];
+}
+
+export function forgedInventoryRarity(state: Pick<GameState, 'forgedEquipmentRarities'>, itemId: string, fallback: Rarity): Rarity {
+  const rolls = state.forgedEquipmentRarities[itemId] ?? [];
+  return rolls.reduce((best, rarity) => RARITY_ORDER.indexOf(rarity) > RARITY_ORDER.indexOf(best) ? rarity : best, fallback);
+}
 
 // Bar-math mirror of the engine XP step (BASE_XP * level^XP_GROWTH), using the
 // engine's own constants so the curve has a single source of truth.
@@ -368,6 +388,7 @@ export function seedState(config: Pick<SeedConfig, 'playerId' | 'persistence'>):
     inventory: needsStarterSatchel(save) ? { ...STARTING_SATCHEL } : (save?.inventory ?? {}),
     durability: save?.durability ?? {},
     equipment: save?.equipment ?? emptyEquipment(),
+    forgedEquipmentRarities: save?.forgedEquipmentRarities ?? {},
     activeAction: retainedAction,
     actionQueue: (save?.actionQueue ?? []).slice(0, MAX_ACTION_QUEUE).map((action) => ({
       ...action,
@@ -458,6 +479,7 @@ export function gameToSaveData(state: GameState): GameSaveData {
     inventory: state.inventory,
     durability: state.durability,
     equipment: state.equipment,
+    forgedEquipmentRarities: state.forgedEquipmentRarities,
     combatXp: state.combatXp,
     combatLevel: state.combatLevel,
     selectedSkill: state.selectedSkill,
@@ -639,7 +661,7 @@ const RARITY_BHC_BONUS: Record<string, number> = { common: 0, uncommon: 0.02, ra
 
 export function battleBhcReward(state: GameState, enemy: EnemyDefinition): number {
   const weapon = state.equipment.weapon;
-  const rarity = weapon ? ITEM_BY_ID[weapon.itemId]?.rarity ?? 'common' : 'common';
+  const rarity = weapon ? (weapon.metadata?.forgedRarity as Rarity | undefined) ?? ITEM_BY_ID[weapon.itemId]?.rarity ?? 'common' : 'common';
   const forge = Number(weapon?.metadata?.forgeLevel ?? 0);
   const awakening = Number(weapon?.metadata?.awakening ?? 0);
   const categoryBonus = enemy.category === 'boss' ? 0.12 : enemy.category === 'rare' ? 0.07 : enemy.category === 'elite' ? 0.03 : 0;
@@ -789,28 +811,39 @@ function tickCore(prev: GameState, now: number, includeCombat: boolean): GameSta
               quantity: 1,
               completed: 0,
             });
-            const grow = gainExperience(state.skills[action.skill], craft.xpGained);
+            const craftSkill = (recipe.skill === 'crafting' ? action.skill : recipe.skill) as SkillId;
+            const grow = gainExperience(state.skills[craftSkill], craft.xpGained);
             let inventory = state.inventory;
+            const forgedEquipmentRarities = Object.fromEntries(
+              Object.entries(state.forgedEquipmentRarities).map(([id, rarities]) => [id, [...rarities]]),
+            );
             for (const ing of craft.consumedIngredients) inventory = addInventory(inventory, ing.itemId, -ing.quantity);
             const gains: GainFeed[] = [{ id: nextId(), text: `+${craft.xpGained} XP`, kind: 'xp' }];
             for (const o of craft.outputs) {
               inventory = addInventory(inventory, o.itemId, o.quantity);
+              const definition = ITEM_BY_ID[o.itemId];
+              if (craftSkill === 'smithing' && definition?.equipmentSlot) {
+                const rarities = forgedEquipmentRarities[o.itemId] ?? [];
+                for (let count = 0; count < o.quantity; count += 1) rarities.push(rollForgedRarity(definition.rarity, grow.newLevel));
+                forgedEquipmentRarities[o.itemId] = rarities.slice(-1000);
+              }
+              const forgedRarity = definition?.equipmentSlot ? forgedEquipmentRarities[o.itemId]?.at(-1) : undefined;
               gains.push({
                 id: nextId(),
-                text: `${o.quantity > 1 ? `${o.quantity}x ` : ''}${itemName(o.itemId)}`,
-                kind: 'item',
+                text: `${forgedRarity ? `${forgedRarity[0].toUpperCase()}${forgedRarity.slice(1)} ` : ''}${o.quantity > 1 ? `${o.quantity}x ` : ''}${itemName(o.itemId)}`,
+                kind: forgedRarity === 'epic' || forgedRarity === 'legendary' ? 'rare' : 'item',
               });
             }
             if (grow.levelsGained > 0) {
-              gains.push({ id: nextId(), text: `${recipe.name} — ${action.skill} level ${grow.newLevel}!`, kind: 'level' });
+              gains.push({ id: nextId(), text: `${recipe.name} — ${craftSkill} level ${grow.newLevel}!`, kind: 'level' });
             }
-            const advanced = { ...state, skills: { ...state.skills, [action.skill]: grow.newXp }, inventory };
+            const advanced = { ...state, skills: { ...state.skills, [craftSkill]: grow.newXp }, inventory, forgedEquipmentRarities };
             state = {
               ...advanced,
               gains: pushGains(state.gains, gains),
-              actionLog: pushActionLog(state.actionLog, [{ skill: action.skill, text: `${recipe.name} crafted`, rare: false }]),
+              actionLog: pushActionLog(state.actionLog, [{ skill: craftSkill, text: `${recipe.name} crafted`, rare: false }]),
               ...nextActionState(advanced, {
-                kind: 'crafting', skill: action.skill, recipeId: recipe.id,
+                kind: 'crafting', skill: craftSkill, recipeId: recipe.id,
                 startTime: now, duration: recipe.duration,
                 repetitionsRemaining: action.repetitionsRemaining,
               }, now),
@@ -1012,8 +1045,10 @@ function activateQueuedAction(prev: GameState, queued: QueuedAction, now: number
   }
   if (queued.kind === 'crafting' && queued.recipeId) {
     const recipe = getRecipeById(queued.recipeId);
-    if (!recipe || !hasIngredients(recipe, prev.inventory).canCraft) return null;
-    return { ...queued, startTime: now, duration: recipe.duration, repetitionsRemaining: queued.repetitions };
+    if (!recipe) return null;
+    const recipeSkill = (recipe.skill === 'crafting' ? queued.skill : recipe.skill) as SkillId;
+    if (levelForXp(prev.skills[recipeSkill]) < recipe.levelRequired || !hasIngredients(recipe, prev.inventory).canCraft) return null;
+    return { ...queued, skill: recipeSkill, startTime: now, duration: recipe.duration, repetitionsRemaining: queued.repetitions };
   }
   return null;
 }
@@ -1194,10 +1229,17 @@ export function reduceEquipItem(prev: GameState, slot: EquipmentSlot, itemId: st
   const current = prev.equipment[slot];
   const inventory = { ...prev.inventory };
   const equipment: EquipmentSlots = { ...prev.equipment };
+  const forgedEquipmentRarities = Object.fromEntries(
+    Object.entries(prev.forgedEquipmentRarities).map(([id, rarities]) => [id, [...rarities]]),
+  );
 
   if (current) {
     // Put current item back in inventory
     inventory[current.itemId] = (inventory[current.itemId] ?? 0) + 1;
+    const currentRarity = current.metadata?.forgedRarity;
+    if (typeof currentRarity === 'string' && RARITY_ORDER.includes(currentRarity as Rarity)) {
+      forgedEquipmentRarities[current.itemId] = [...(forgedEquipmentRarities[current.itemId] ?? []), currentRarity as Rarity];
+    }
   }
 
   // Move new item from inventory to equipment slot
@@ -1209,13 +1251,21 @@ export function reduceEquipItem(prev: GameState, slot: EquipmentSlot, itemId: st
   // Create new equipment instance. NOTE: uids are item-definition ids for now
   // (dev); unique instance ids for durability/forge/awaken state land with
   // server-side ItemInstance (see gameserver work).
+  const forgedRolls = forgedEquipmentRarities[itemId] ?? [];
+  let forgedRarity: Rarity | undefined;
+  if (forgedRolls.length > 0) {
+    const bestIndex = forgedRolls.reduce((best, rarity, index) =>
+      RARITY_ORDER.indexOf(rarity) > RARITY_ORDER.indexOf(forgedRolls[best]) ? index : best, 0);
+    [forgedRarity] = forgedRolls.splice(bestIndex, 1);
+    if (forgedRolls.length === 0) delete forgedEquipmentRarities[itemId];
+  }
   const newItem = {
-    uid: itemId,
+    uid: `${itemId}-${Date.now()}-${nextId()}`,
     itemId,
     quantity: 1,
     equipped: true,
     durability: 100,
-    metadata: {},
+    metadata: forgedRarity ? { forgedRarity } : {},
   } as InventoryItem;
 
   equipment[slot] = newItem;
@@ -1225,6 +1275,7 @@ export function reduceEquipItem(prev: GameState, slot: EquipmentSlot, itemId: st
     ...prev,
     inventory,
     equipment,
+    forgedEquipmentRarities,
     actionLog: [
       { id: nextId(), skill: 'smithing' as SkillId, text: `Equipped ${ITEM_BY_ID[itemId]?.name ?? itemId}`, rare: false, ts: now },
       ...prev.actionLog,
@@ -1239,12 +1290,18 @@ export function reduceUnequipItem(prev: GameState, slot: EquipmentSlot): GameSta
 
   const inventory = { ...prev.inventory, [current.itemId]: (prev.inventory[current.itemId] ?? 0) + 1 };
   const equipment: EquipmentSlots = { ...prev.equipment, [slot]: null };
+  const forgedEquipmentRarities = { ...prev.forgedEquipmentRarities };
+  const currentRarity = current.metadata?.forgedRarity;
+  if (typeof currentRarity === 'string' && RARITY_ORDER.includes(currentRarity as Rarity)) {
+    forgedEquipmentRarities[current.itemId] = [...(prev.forgedEquipmentRarities[current.itemId] ?? []), currentRarity as Rarity];
+  }
 
   const now = Date.now();
   return {
     ...prev,
     inventory,
     equipment,
+    forgedEquipmentRarities,
     actionLog: [
       { id: nextId(), skill: 'smithing' as SkillId, text: `Unequipped ${ITEM_BY_ID[current.itemId]?.name ?? current.itemId}`, rare: false, ts: now },
       ...prev.actionLog,
@@ -1264,7 +1321,7 @@ const HERO_REFORGE_COSTS = [1, 2, 4, 7, 10] as const;
 export function weaponRerollCost(state: GameState): number | null {
   const weapon = state.equipment.weapon;
   if (!weapon) return null;
-  return RARITY_REROLL_COST[ITEM_BY_ID[weapon.itemId]?.rarity ?? 'common'];
+  return RARITY_REROLL_COST[(weapon.metadata?.forgedRarity as Rarity | undefined) ?? ITEM_BY_ID[weapon.itemId]?.rarity ?? 'common'];
 }
 
 export function heroReforgeCost(state: GameState): number {

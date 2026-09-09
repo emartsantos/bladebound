@@ -1,10 +1,13 @@
-import type { BaseStats, EquipmentSlots, StatBlock } from '@premium-rpg/shared-types';
+import type { BaseStats, EquipmentSlots, StatBlock, Rarity } from '@premium-rpg/shared-types';
 import { ITEM_BY_ID } from '@premium-rpg/game-data';
 import { baseStatsForLevel } from '@/lib/player-summary';
 import { getPlayerClass } from '@/lib/classes';
 import type { InvestmentState } from '@/lib/persistence/game-persistence';
 
 export const COMBAT_LEVEL_CAP = 100;
+const FORGED_QUALITY_MULTIPLIER: Record<Rarity, number> = {
+  common: 1, uncommon: 1.05, rare: 1.12, epic: 1.22, legendary: 1.35,
+};
 
 const CLASS_GROWTH = {
   warrior: { strength: 1.18, vitality: 1.15, armor: 1.12 },
@@ -28,7 +31,10 @@ export function equipmentStats(equipment: EquipmentSlots): Partial<StatBlock> {
     const definition = ITEM_BY_ID[equipped.itemId];
     const forgeLevel = Number(equipped.metadata?.forgeLevel ?? 0);
     const awakening = Number(equipped.metadata?.awakening ?? 0);
-    const multiplier = definition?.equipmentSlot === 'weapon' ? 1 + forgeLevel * 0.04 + awakening * 0.08 : 1;
+    const forgedRarity = equipped.metadata?.forgedRarity as Rarity | undefined;
+    const qualityMultiplier = forgedRarity ? FORGED_QUALITY_MULTIPLIER[forgedRarity] : 1;
+    const investmentMultiplier = definition?.equipmentSlot === 'weapon' ? 1 + forgeLevel * 0.04 + awakening * 0.08 : 1;
+    const multiplier = qualityMultiplier * investmentMultiplier;
     for (const [key, value] of Object.entries(definition?.stats ?? {})) {
       const stat = key as keyof StatBlock;
       totals[stat] = ((totals[stat] ?? 0) + (value ?? 0) * multiplier) as never;
