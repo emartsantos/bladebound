@@ -98,7 +98,10 @@ async function restoreSession(): Promise<AuthState> {
       saveSupabaseSession(stored);
     }
   }
-  if (stored.character) await applyBHCGrants(stored.character.id);
+  if (stored.character) {
+    await applyBHCGrants(stored.character.id);
+    await pullSupabaseGameSave(stored.character.id);
+  }
   return { isAuthenticated: true, isGuest: false, session: authSession(stored), guestSession: null, character: stored.character ?? null, characters: stored.characters ?? (stored.character ? [stored.character] : []), activeCharacterId: stored.character?.id ?? null, loading: false };
 }
 

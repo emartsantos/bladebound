@@ -2,16 +2,27 @@ import type { GameSaveData } from './game-persistence';
 import { localGamePersistence } from './local-game-persistence';
 import { loadSupabaseSession, supabaseFetch } from '@/lib/supabase/session';
 
+const GRANT_STAMP_PREFIX = 'premium-rpg:grant:seen:';
+
+function readGrantStamp(characterId: string): string | null {
+  try { return localStorage.getItem(`${GRANT_STAMP_PREFIX}${characterId}`); } catch { return null; }
+}
+
+function writeGrantStamp(characterId: string, stamp: string): void {
+  try { localStorage.setItem(`${GRANT_STAMP_PREFIX}${characterId}`, stamp); } catch { /* ignore */ }
+}
+
 export async function pullSupabaseGameSave(characterId: string): Promise<void> {
   const session = loadSupabaseSession();
   if (!session?.accessToken) return;
   const response = await supabaseFetch(
-    `/rest/v1/game_saves?character_id=eq.${encodeURIComponent(characterId)}&select=save_data&limit=1`,
+    `/rest/v1/game_saves?character_id=eq.${encodeURIComponent(characterId)}&select=save_data,grants_seen_at&limit=1`,
     { method: 'GET' }, session.accessToken,
   );
   if (!response.ok) return;
-  const rows = await response.json() as { save_data: GameSaveData }[];
+  const rows = await response.json() as { save_data: GameSaveData; grants_seen_at?: string | null }[];
   if (rows[0]?.save_data) localGamePersistence.save(`character:${characterId}`, rows[0].save_data, false);
+  if (rows[0]?.grants_seen_at) writeGrantStamp(characterId, rows[0].grants_seen_at);
 }
 
 export async function pushSupabaseGameSave(data: GameSaveData): Promise<void> {
@@ -26,6 +37,7 @@ export async function pushSupabaseGameSave(data: GameSaveData): Promise<void> {
       owner_id: session.userId,
       schema_version: data.schemaVersion ?? 2,
       save_data: data,
+      grants_seen_at: readGrantStamp(characterId),
       updated_at: new Date().toISOString(),
     }),
   }, session.accessToken);
@@ -59,6 +71,7 @@ export async function applyBHCGrants(characterId: string): Promise<number> {
   }
   if (total > 0) {
     const key = `character:${characterId}`;
+    writeGrantStamp(characterId, new Date().toISOString());
     const save = localGamePersistence.load(key);
     if (save) {
       const investment = save.investment ?? { bhc: 0, burnedTotal: 0, heroRebirth: 0, heroReforge: 0, heroBonusStat: null, heroBonusValue: 0, history: [] };
