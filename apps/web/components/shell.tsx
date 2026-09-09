@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, ReactNode, createContext, useContext } from 'react';
+import { useState, useCallback, useEffect, ReactNode, createContext, useContext } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -28,6 +28,7 @@ import { SKILL_ORDER, skillLabel } from '@/lib/skills-meta';
 import { SkillIcon } from '@/components/game/icons';
 import { CurrentAction } from '@/components/CurrentAction';
 import { APP_VERSION_LABEL } from '@/lib/version';
+import { EMBER_COLOSSUS_END, emberEventActive, emberEventDay } from '@/lib/game/service';
 
 // ── NAV DEFINITION ──────────────────────────────────────────────
 
@@ -212,6 +213,17 @@ export function TopBar() {
   const router = useRouter();
   const { player } = usePlayer();
   const { state, maxHealth } = useGame();
+  const [eventNow, setEventNow] = useState(0);
+  useEffect(() => {
+    setEventNow(Date.now());
+    const timer = window.setInterval(() => setEventNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const eventLive = eventNow > 0 && emberEventActive(eventNow);
+  const eventRemaining = Math.max(0, EMBER_COLOSSUS_END - eventNow);
+  const eventDays = Math.floor(eventRemaining / 86_400_000);
+  const eventHours = Math.floor((eventRemaining % 86_400_000) / 3_600_000);
+  const eventAttemptUsed = eventLive && Boolean(state.emberColossus.attemptsByDay[emberEventDay(eventNow)]);
 
   const profileItems = [
     { label: 'Settings', value: 'settings', icon: <LuSettings className="h-3.5 w-3.5" /> },
@@ -248,6 +260,23 @@ export function TopBar() {
 
         {/* RIGHT: resources + account + menu */}
         <div className="flex items-center gap-2">
+          {eventLive && (
+            <Tooltip content={`The Ember Colossus is live · ${eventAttemptUsed ? 'today’s attempt used' : 'free attempt ready'}`} side="bottom">
+              <button
+                onClick={() => setActiveSection('adventure')}
+                className="legendary-pulse group relative flex h-8 items-center gap-2 overflow-hidden rounded-sm border border-ember/70 bg-gradient-to-r from-ember/25 via-danger/15 to-ember/25 px-2.5 text-left shadow-[0_0_18px_rgba(212,105,47,.22)] transition-colors hover:border-emberLight"
+                aria-label="Open live Ember Colossus event"
+              >
+                <span className="absolute inset-0 event-ember-sheen" aria-hidden="true" />
+                <LuFlame className="relative h-4 w-4 text-emberLight" />
+                <span className="relative hidden leading-none sm:block">
+                  <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-emberLight">Event live</span>
+                  <span className="mt-0.5 block font-mono text-[9px] text-bone">{eventDays}d {eventHours}h · {eventAttemptUsed ? 'Used' : 'Ready'}</span>
+                </span>
+                {!eventAttemptUsed && <span className="relative h-1.5 w-1.5 rounded-full bg-verdantBright shadow-[0_0_8px_currentColor]" />}
+              </button>
+            </Tooltip>
+          )}
           <ResourceChip icon={<LuCrown className="h-3.5 w-3.5" />} value={`Lv ${state.combatLevel}`} />
           <div className="hidden sm:block">
             <ResourceChip icon={<LuCoins className="h-3.5 w-3.5 text-bronze" />} tone="text-bronze" value={state.gold.toLocaleString()} />

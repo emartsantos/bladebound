@@ -441,6 +441,21 @@
   }
 }
 
+.event-ember-sheen {
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 190, 110, 0.16) 45%, transparent 70%);
+  background-size: 220% 100%;
+  animation: event-ember-sheen 3s linear infinite;
+}
+
+@keyframes event-ember-sheen {
+  from { background-position: 180% 0; }
+  to { background-position: -120% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-ember-sheen { animation: none; }
+}
+
 /* ═════════════════════════════════════════════════════════════
    CINEMATIC ACTIVITY SCENE
    Layered etched-dark-fantasy stage. The live representation of
