@@ -20,9 +20,8 @@ const rarityColor = (rarity: SummonRarity | undefined): string => rarity ? RARIT
 
 export function HeroesSection() {
   const { state, summonHero, runSummonedHeroBattle } = useGame();
-  const { state: authState, createCharacter, selectCharacter, archiveCharacter } = useAuth();
+  const { state: authState, selectCharacter, archiveCharacter } = useAuth();
   const characters = authState.characters ?? (authState.character ? [authState.character] : []);
-  const [newHeroName, setNewHeroName] = useState('');
   const [message, setMessage] = useState('');
   const canAfford = state.investment.bhc + 0.000001 >= SUMMON_COST;
   const rosterFull = characters.length >= HERO_CAP;
@@ -38,14 +37,6 @@ export function HeroesSection() {
     if (!result) { setMessage(rosterFull ? `Your roster is full (${HERO_CAP}/${HERO_CAP} heroes).` : 'You need more BHC to summon.'); return; }
     if (result.duplicate) setMessage(`${result.name} · duplicate — +${result.essenceGain} essence. That hero is already in your roster.`);
     else setMessage(`${result.rarity} ${result.name} summoned and added to your roster.`);
-  }
-
-  async function handleCreate() {
-    setMessage('');
-    const result = await createCharacter({ name: newHeroName.trim() });
-    if (!result.success) { setMessage(result.error ?? 'Could not create hero.'); return; }
-    setNewHeroName('');
-    setMessage(`${result.character?.name} created — a free common hero.`);
   }
 
   return (
@@ -100,13 +91,8 @@ export function HeroesSection() {
             })}
           </div>
         ) : (
-          <EmptyState icon={<LuUserRound className="h-7 w-7" />} title="No heroes yet" hint="Create your first hero below — a free common hero." />
+          <EmptyState icon={<LuUserRound className="h-7 w-7" />} title="No heroes yet" hint="Your free common hero arrives with your account." />
         )}
-
-        <div className="mt-3 flex flex-wrap gap-2 border-t border-iron/60 pt-3">
-          <input value={newHeroName} maxLength={24} onChange={(event) => setNewHeroName(event.target.value)} placeholder="New hero name" className="min-w-40 flex-1 rounded-sm border border-iron bg-charcoal px-2.5 py-1.5 text-xs text-bone outline-none focus:border-bronze/60" />
-          <GameButton variant="secondary" disabled={newHeroName.trim().length < 2 || rosterFull || authState.isGuest} onClick={() => void handleCreate()}>Create hero · common</GameButton>
-        </div>
       </Panel>
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_.8fr]">
