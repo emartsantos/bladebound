@@ -25,6 +25,8 @@ import type { MarketplaceAssetType } from '@/lib/persistence/game-persistence';
 
 export type { GameState, ActiveAction, QueuedAction, ActionLogEntry, GainFeed, CombatView, SkillView };
 
+export type SummonHeroResult = { descriptor: SummonDescriptor } | { error: string };
+
 export interface GameContextValue {
   state: GameState;
   playerId: string;
@@ -56,7 +58,7 @@ export interface GameContextValue {
   rerollWeapon: () => void;
   rebirthHero: () => void;
   reforgeHero: () => void;
-  summonHero: () => Promise<SummonDescriptor | null>;
+  summonHero: () => Promise<SummonHeroResult | null>;
   runSummonedHeroBattle: (heroId: string) => void;
   challengeEmberColossus: () => void;
   buyShopItem: (shopItemId: string) => void;
@@ -202,7 +204,7 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
   const rerollWeapon = useCallback(() => run((c) => c.rerollWeapon()), [run]);
   const rebirthHero = useCallback(() => run((c) => c.rebirthHero()), [run]);
   const reforgeHero = useCallback(() => run((c) => c.reforgeHero()), [run]);
-  const summonHero = useCallback(async (): Promise<SummonDescriptor | null> => {
+  const summonHero = useCallback(async (): Promise<SummonHeroResult | null> => {
     if (authState.isGuest) return null;
     if ((authState.characters?.length ?? 1) >= HERO_CAP) return null;
     const client = clientRef.current;
@@ -217,9 +219,9 @@ export function GameProvider({ children, resetNonce }: { children: ReactNode; re
         rarity: descriptor.rarity,
         summonId: descriptor.summonId,
       });
-      if (!created.success) return null;
+      if (!created.success) return { error: created.error ?? 'Hero could not be created' };
     }
-    return descriptor;
+    return { descriptor };
   }, [createCharacter, authState.characters]);
   const runSummonedHeroBattle = useCallback((heroId: string) => run((c) => c.runSummonedHeroBattle(heroId)), [run]);
   const challengeEmberColossus = useCallback(() => run((c) => c.challengeEmberColossus()), [run]);

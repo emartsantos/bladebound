@@ -36,8 +36,10 @@ export function HeroesSection() {
     setMessage('');
     const result = await summonHero();
     if (!result) { setMessage(heroLocked ? 'This hero is locked by an active marketplace listing. Cancel it before summoning.' : rosterFull ? `Your roster is full (${HERO_CAP}/${HERO_CAP} heroes).` : `This hero needs ${SUMMON_COST.toFixed(2)} BHC to summon.`); return; }
-    if (result.duplicate) setMessage(`${result.name} · duplicate — +${result.essenceGain} essence. That hero is already in your roster.`);
-    else setMessage(`${result.rarity} ${result.name} summoned and added to your roster.`);
+    if ('error' in result) { setMessage(`That hero could not be added to your roster: ${result.error}`); return; }
+    const descriptor = result.descriptor;
+    if (descriptor.duplicate) setMessage(`${descriptor.name} · duplicate — +${descriptor.essenceGain} essence. No new hero enters your roster — roll again for a chance at a new hero.`);
+    else setMessage(`${descriptor.rarity} ${descriptor.name} summoned and added to your roster.`);
   }
 
   return (
